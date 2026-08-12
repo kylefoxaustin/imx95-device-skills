@@ -1,0 +1,93 @@
+# imx95-device-skills .gitignore
+
+# ── Python ──────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+.Python
+pip-wheel-metadata/
+*.whl
+
+# ── Virtual environments ─────────────────────────────────────────────────────
+.venv/
+venv/
+env/
+ENV/
+.env
+
+# ── Shell / Bash ─────────────────────────────────────────────────────────────
+*.swp
+*.swo
+*~
+
+# ── Editor / IDE ─────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.iml
+.DS_Store
+Thumbs.db
+.project
+.classpath
+.settings/
+
+# ── Test / eval artifacts ────────────────────────────────────────────────────
+evals/results/
+evals/tmp/
+*.eval_output
+*.eval_log
+
+# ── Model files (large binaries — store in LFS or download at runtime) ───────
+*.tflite
+*.onnx
+*.pb
+*.h5
+*.bin
+*.weights
+models/
+
+# ── Benchmark output ─────────────────────────────────────────────────────────
+benchmark_results/
+*.bench.json
+*.bench.txt
+
+# ── Board-specific local config (never commit) ───────────────────────────────
+local.conf
+board.conf
+.board_ip
+.ssh_target
+secrets/
+*.key
+*.pem
+*.crt
+
+# ── Logs ─────────────────────────────────────────────────────────────────────
+*.log
+logs/
+dmesg_capture.txt
+snapshot_*.txt
+
+# ── Temporary files ──────────────────────────────────────────────────────────
+tmp/
+temp/
+.tmp/
+*.tmp
+*.bak
+*.orig
+
+# ── OS-generated ─────────────────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+
+# ── Git ──────────────────────────────────────────────────────────────────────
+*.orig
+*.rej

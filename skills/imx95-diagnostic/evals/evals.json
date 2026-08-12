@@ -1,0 +1,49 @@
+[
+  {
+    "id": "eval-001",
+    "prompt": "Run a full diagnostic on this board and tell me if anything looks wrong.",
+    "expected_skill": "imx95-diagnostic",
+    "expected_commands": [
+      "bash skills/imx95-diagnostic/scripts/detect_imx95.sh",
+      "bash skills/imx95-diagnostic/scripts/snapshot.sh"
+    ],
+    "pass_criteria": "Claude runs detect_imx95.sh first, then snapshot.sh. Output includes sections for BOARD IDENTITY, CPU, THERMAL, MEMORY, and DMESG ERRORS. Claude summarizes findings in plain language and flags any anomalies (throttling, low memory, dmesg errors) with specific values."
+  },
+  {
+    "id": "eval-002",
+    "prompt": "The board just rebooted unexpectedly. What happened?",
+    "expected_skill": "imx95-diagnostic",
+    "expected_commands": [
+      "bash skills/imx95-diagnostic/scripts/snapshot.sh",
+      "dmesg"
+    ],
+    "pass_criteria": "Claude runs the diagnostic snapshot and pays particular attention to the DMESG ERRORS section. It reports any kernel panics, watchdog resets, thermal shutdowns, or OOM kills found in dmesg. If no errors are found, Claude says so explicitly and suggests checking /var/log/syslog or journalctl."
+  },
+  {
+    "id": "eval-003",
+    "prompt": "Capture a baseline before I start my NPU benchmark.",
+    "expected_skill": "imx95-diagnostic",
+    "expected_commands": [
+      "bash skills/imx95-diagnostic/scripts/snapshot.sh"
+    ],
+    "pass_criteria": "Claude runs snapshot.sh and presents a concise baseline summary including: CPU frequencies and governor, thermal zone temperatures, available memory and CMA free, NPU driver state, and GPU frequency. Output is saved or noted so it can be compared to post-benchmark state."
+  },
+  {
+    "id": "eval-004",
+    "prompt": "Is this board an i.MX 95? I want to make sure before running anything.",
+    "expected_skill": "imx95-diagnostic",
+    "expected_commands": [
+      "bash skills/imx95-diagnostic/scripts/detect_imx95.sh"
+    ],
+    "pass_criteria": "Claude runs detect_imx95.sh. If exit code is 0, Claude confirms the board is i.MX 95 and reports the model string and SoC revision. If exit code is non-zero, Claude reports the actual compatible string found and explains why it does not match i.MX 95."
+  },
+  {
+    "id": "eval-005",
+    "prompt": "Show me just the thermal and CPU frequency status — I don't need the full report.",
+    "expected_skill": "imx95-diagnostic",
+    "expected_commands": [
+      "bash skills/imx95-diagnostic/scripts/snapshot.sh --section CPU --section THERMAL"
+    ],
+    "pass_criteria": "Claude runs snapshot.sh with --section flags to limit output to CPU and THERMAL sections only. It reports all 6 CPU frequencies with their governors, and all thermal zone temperatures with labels. It flags any temperature above 75°C or any CPU below expected frequency under load."
+  }
+]
