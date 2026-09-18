@@ -282,8 +282,11 @@ fi
 if should_run "GPU"; then
     section_header "GPU"
 
+    # GPU is an Arm Mali-G310 (1 core, r0p0) — NOT a Vivante GC7000UL (that is
+    # i.MX8M Plus). It is graphics-only: OpenCL is an ICD stub, so it is not an
+    # ML backend on this board. ground-truth §1.
     GPU_DEVFREQ=""
-    for pattern in "*gpu*" "*gc*" "*vivante*" "*galcore*"; do
+    for pattern in "*mali*" "*gpu*" "*gc*" "*vivante*" "*galcore*"; do
         found=$(ls -d /sys/class/devfreq/${pattern} 2>/dev/null | head -1 || true)
         [ -n "${found}" ] && GPU_DEVFREQ="${found}" && break
     done
@@ -350,21 +353,40 @@ if should_run "NPU"; then
 
     [ "${NPU_FOUND}" = "0" ] && echo "NPU driver: NOT LOADED — check BSP and device tree"
 
-    # eIQ delegate library
+    # eIQ Neutron delegate libraries.
+    #
+    # ⚠️ This block used to search libethosu_delegate.so (i.MX93's Ethos-U65) and
+    # libvx_delegate.so (i.MX8M Plus's VeriSilicon VX), then print "NPU inference
+    # will fall back to CPU". That sentence is how a CPU benchmark came to be
+    # reported as an NPU number. See references/imx95-ground-truth.md §1.1.
     echo ""
-    echo "eIQ delegate libraries:"
+    echo "Neutron delegate libraries (i.MX95 — TFLite stack):"
     DELEGATE_FOUND=0
-    for lib in /usr/lib/libethosu_delegate.so \
-               /usr/lib/libvx_delegate.so \
-               /usr/local/lib/libethosu_delegate.so \
-               /usr/lib/libNNDelegate.so \
-               /usr/lib/aarch64-linux-gnu/libethosu_delegate.so; do
+    for lib in /usr/lib/libneutron_delegate.so \
+               /usr/lib/liblitert_neutron_delegate.so; do
         if [ -f "${lib}" ]; then
-            printf "  FOUND: %s\n" "${lib}"
+            printf "  FOUND: %-44s (%s bytes)\n" "${lib}" "$(stat -c%s "${lib}" 2>/dev/null || echo '?')"
             DELEGATE_FOUND=1
         fi
     done
-    [ "${DELEGATE_FOUND}" = "0" ] && echo "  No eIQ delegate .so found — NPU inference will fall back to CPU"
+    if [ "${DELEGATE_FOUND}" = "0" ]; then
+        echo "  NONE FOUND — no Neutron TFLite inference is possible on this board."
+        echo "  Do NOT interpret any later latency as an NPU number."
+    fi
+
+    # ONNX Runtime Neutron EP — a SEPARATE stack with its own placement signal.
+    echo ""
+    echo "ONNX Runtime Neutron EP (LLM stack — independent of the delegate above):"
+    ORT_FOUND=0
+    for lib in /usr/lib/libonnxruntime.so.1.24.3 /usr/lib/libNeutronDriver.so; do
+        [ -f "${lib}" ] && { printf "  FOUND: %s\n" "${lib}"; ORT_FOUND=1; }
+    done
+    [ "${ORT_FOUND}" = "0" ] && echo "  not present"
+
+    # Other-SoC delegates: report loudly if present; never bind to them.
+    for lib in /usr/lib/libethosu_delegate.so /usr/lib/libvx_delegate.so; do
+        [ -f "${lib}" ] && echo "  ⚠️ WRONG-SoC DELEGATE PRESENT: ${lib} — not i.MX95, never load it here"
+    done
 
     # benchmark_model tool
     echo ""

@@ -1,145 +1,229 @@
 ---
 name: imx95-npu-benchmark
-version: "0.1.0"
+version: "2.0.0"
 platform: imx95
+accelerator: neutron
 invoke_when:
   - "benchmark the NPU"
-  - "how fast is the NPU"
-  - "what TOPS can I get"
+  - "how fast is the Neutron"
+  - "is the NPU actually being used"
   - "run NPU benchmark"
-  - "test NPU performance"
-  - "measure inference latency"
-  - "validate NPU after BSP update"
-  - "compare model performance"
-  - "eIQ benchmark"
-  - "TFLite benchmark"
+  - "measure inference latency on the NPU"
+  - "validate NPU after a BSP update"
+  - "why is inference slow"
 requires:
   - bash
   - benchmark_model
-  - python3
+  - /usr/lib/libneutron_delegate.so
+  - /dev/neutron0
 safe: true
 destructive: false
+refuses_rather_than_degrades: true
 ---
 
-# Skill: imx95-npu-benchmark
+# imx95-npu-benchmark
 
 ## Purpose
 
-Runs a standardized inference benchmark on the i.MX 95 eIQ Neutron NPU. Uses TFLite
-`benchmark_model` with the eIQ Neutron delegate on a MobileNetV2 model (downloaded
-automatically if not present). Reports average/min/max latency, inferred TOPS, and
-thermal state before and after the run.
+Benchmark a model on the i.MX95's built-in **eIQ Neutron-S** NPU, and — the part that
+matters — **prove the NPU actually executed it**.
 
-Use this skill:
-- When the user asks "how fast is the NPU" or "benchmark the NPU"
-- To validate NPU functionality after a BSP update
-- To compare model performance before/after optimization
-- As part of `imx95-perf-investigator` when NPU workloads are involved
+This skill exists in its current form because the previous version did not. It searched six
+delegate paths, all belonging to other i.MX parts, found none on this board, printed
+`"NPU inference will fall back to CPU"`, benchmarked six Cortex-A55 cores, and multiplied
+the result into a TOPS figure. Every step of that was working as written.
 
-This skill is **read-only and safe** — it does not modify any persistent state.
+> ## ⭐ THE ONE RULE: MEASURE **PLACEMENT**, NEVER LATENCY.
+>
+> The Neutron has three distinct failure modes and **all three return a plausible latency
+> with no NPU in it.** Timing cannot tell them apart — it looks fine in every case. The
+> delegated-node/partition count is the only honest signal, and it also tells you *which*
+> failure you have, which matters because they are fixed in three different places.
+>
+> | placement | diagnosis | fixed |
+> |---|---|---|
+> | `1 NeutronGraph / N nodes` | ✅ healthy | — |
+> | `1 of N` nodes, rest on CPU | 🔴 converter trap | at CONVERT time |
+> | `0 of N` + `Neutron hardware init failed!!!` | 🔴 CMA trap | at RUN time |
+> | no placement line at all | 🔴 **cannot prove anything** | before you quote a number |
+
+**The last row is the important one.** Absence of evidence is reported as **failure**, not as
+success. A plausible number with no placement line has exactly the shape of all three failures.
+
+> ## 🔴 AND PLACEMENT IS NOT THE WHOLE GATE — IT PROVES EXECUTION, NOT CORRECTNESS.
+> This skill's exit 0 means *"the NPU ran this graph."* It does **not** mean the graph computed the
+> right answer. The fleet has the worked instance on this very board: a **yolov8l** run with
+> **good delegation** and **ZERO detections** — perfect placement, perfect-looking latency, no
+> output. A broken run is also a **fast** run, so timing and placement both point the wrong way.
+>
+> ⇒ **A performance number is not shippable until an output-correctness gate has passed on the same
+> artifact.** Run the fleet's detection gate (`yolo_output_gate.py` in the qualcomm results tree)
+> or an equivalent for your model class, and quote the two results together. Exit 0 here plus a
+> silent accuracy failure is exactly the "broken is faster" defect this repo exists to stop —
+> one layer past the one it already catches.
+> *(Gap found by the 2026-09-17 cold-card drill: nothing in this repo said so before.)*
 
 ---
+
+## What this skill refuses to do
+
+These are deliberate, and each one is a defect the previous version shipped.
+
+1. **It will not run without a model you supply.** No default download. The previous version
+   fetched a **float32** MobileNetV2 from the TFLite zoo — a model that cannot run on the
+   Neutron at all (the delegate path is int8, and the model must additionally be compiled by
+   `neutron-converter`). It would have delegated ~nothing and timed the CPU.
+2. **It will not report TOPS.** `TOPS = 2 × MACs × IPS` is correct arithmetic and a fabrication
+   when the IPS was never proven to be an NPU rate. Neutron peak is **~2–3 TOPS [SOURCED]** and
+   it stays labelled.
+3. **It will not report any timing unless the placement assertion passed.**
+4. **It will not fall back to CPU.** Not being able to use the NPU is a non-zero exit.
+5. **It will not bind to `libethosu_delegate.so` or `libvx_delegate.so`.** Those are i.MX93's
+   and i.MX8M Plus's. If they are present on the box, the skill says so out loud — their
+   presence is what seduced the first implementation.
+
+---
+
+## First measurement — the shortest path that is actually verified
+
+The 2026-09-17 drill's headline finding was that the fleet card had **no path from zero to one
+measurement**. This is that path for this skill, and every element below was run on the board.
+
+```bash
+# On the board. A neutron-converter-compiled model already exists here [MEASURED 2026-08-12]:
+bash skills/imx95-npu-benchmark/scripts/bench_npu.sh --model /root/yolov8n_eiq313.tflite --runs 20
+```
+**Expect, and treat anything else as a failure:**
+```
+Placement line: INFO: NeutronDelegate delegate: 1 nodes delegated out of 33 nodes with 1 partitions.
+PLACEMENT OK: 1/33 nodes, 1 partition(s).
+CmaFree dropped ~8 MB during the run
+exit 0
+```
+**The negative control is on the board too** — `/root/yolov8n_int8_for_neutron.tflite` was never
+through the converter. It must give `0 nodes delegated out of 274`, **no** `CmaFree` movement, and
+**exit 4**. *If it does not refuse, the gate is broken — run this before trusting any number.*
+
+⚠️ Both are **instance** facts about this physical board's `/root`, not properties of an i.MX95.
+⚠️ And per the box above: a passing run here still owes an **output-correctness** check.
 
 ## Usage
 
 ```bash
-# Default: MobileNetV2 on TFLite NPU delegate, 50 runs
-bash skills/imx95-npu-benchmark/scripts/bench_npu.sh
+# 1. Convert on the HOST with the STANDALONE eIQ Neutron SDK CLI (not pip):
+neutron-converter --input model_int8.tflite --target imx95 --output model_neutron.tflite
+scp model_neutron.tflite imx95:/run/media/root-mmcblk0p2/
 
-# Custom model
-bash skills/imx95-npu-benchmark/scripts/bench_npu.sh --model /path/to/model.tflite --runs 100
-
-# Check eIQ installation only
-bash skills/imx95-npu-benchmark/scripts/check_eiq.sh
+# 2. On the board:
+bash skills/imx95-npu-benchmark/scripts/check_eiq.sh          # pre-flight only
+bash skills/imx95-npu-benchmark/scripts/bench_npu.sh \
+     --model /run/media/root-mmcblk0p2/model_neutron.tflite --runs 50
 ```
+
+⚠️ **Stage models on `/run/media/root-mmcblk0p2`, never `/`** — the rootfs is 100% full
+(~300 MB free). See ground-truth §5.
 
 ---
 
-## Step-by-Step Procedure
+## Exit codes — and what Claude should say for each
 
-1. Run `check_eiq.sh` — verifies eIQ runtime and NPU driver are present.
-   If it fails, report the missing component and stop.
+### `bench_npu.sh`
 
-2. Check thermal state with `thermal_ok 75` — if any zone is above 75°C, warn the user
-   and wait up to 60 seconds for the board to cool before proceeding.
+| code | meaning | what to tell the user |
+|---|---|---|
+| 0 | healthy | Report the placement counts *and* the latency, with tags. Say it is batch-1 single-stream. |
+| 1 | pre-flight failed / no runner | The NPU cannot run here. Do not offer a CPU number as a consolation — that substitution is the original bug. |
+| 3 | **CMA trap** | Intermittent, depends on page-cache state. Check `CmaFree` before/after. Remedy (`drop_caches`) is **[UNVERIFIED]** — do not promise it works. |
+| 4 | **converter trap / fragmentation** | Deterministic. Either the graph never fused (broken pip converter → re-convert with standalone SDK 3.1.3), or it crossed the NPU/CPU boundary more than once. |
+| 5 | no placement evidence | Say plainly: *"the run produced a latency, but nothing proves the NPU executed, so there is no number."* |
+| 6 | thermal refusal | Board too hot; a throttled run measures a board state nobody will remember when the number is quoted. |
+| **7** | **a FOREIGN delegate ran the graph** | XNNPACK (CPU) or similar claimed the nodes. Re-run with `--use_xnnpack=false`. **This is a CPU run wearing a placement line** — never quote it. |
+| 8 | runner crashed | The binary exited non-zero. Placement may have printed; the run still did not complete. |
+| **9** | **the two proofs disagree** | Placement says the NPU ran; `CmaFree` never moved. Withhold the number until it is understood — a disagreement between the only two proofs is not a caveat. |
 
-3. Run `bench_npu.sh` — downloads MobileNetV2 if needed, runs benchmark.
+### `check_eiq.sh` — **disjoint codes on purpose**
 
-4. Parse output and report:
-   - Average inference latency in ms
-   - Min/max latency
-   - Inferred TOPS (calculated from latency and model MACs)
-   - Thermal state before and after (flag if temp rose > 10°C)
-   - Whether NPU delegate was actually used (check for "Loaded delegate" in output)
+| code | meaning |
+|---|---|
+| 0 | ready |
+| 10 | not an i.MX95 |
+| 11 | delegate missing (or only another SoC's delegate present) |
+| 12 | `/dev/neutron0` missing — driver did not bind |
+| 13 | no TFLite runner available |
 
-5. If delegate was NOT loaded (fell back to CPU), explain why and suggest fixes.
-
----
-
-## Output Format
-
-```
-=== eIQ NPU BENCHMARK ===
-Model       : MobileNetV2 (224x224, float32)
-Backend     : TFLite + eIQ Neutron delegate
-Delegate    : /usr/lib/libethosu_delegate.so
-Runs        : 50  (5 warmup)
-
-Thermal before : cpu-thermal 48°C
-Thermal after  : cpu-thermal 61°C  (+13°C)
-
---- Results ---
-Avg latency : 2.34 ms
-Min latency : 2.21 ms
-Max latency : 2.89 ms
-Throughput  : 427 inferences/sec
-Est. TOPS   : 0.82 TOPS  (based on 1.92B MACs for MobileNetV2)
-
---- Assessment ---
-NPU delegate: ACTIVE (inference ran on NPU)
-Performance : NORMAL (within expected range for MobileNetV2 on i.MX 95)
-```
+> These do **not** overlap `bench_npu.sh`'s. They used to: `check_eiq.sh` exit 3 meant "driver did
+> not bind" while the table above says 3 = CMA trap — so an agent running the pre-flight standalone,
+> exactly as this file instructs, would deliver the CMA remediation for a missing driver. **A wrong
+> diagnosis produced by two individually-correct documents.**
 
 ---
 
-## TOPS Calculation
+## Interpreting a healthy result
 
-```
-MACs for MobileNetV2 (224x224): ~300M MACs per inference
-Operations = MACs × 2 (multiply + accumulate)
-TOPS = (Operations × inferences_per_sec) / 1e12
-     = (300e6 × 2 × 427) / 1e12
-     ≈ 0.26 TOPS
+A healthy i.MX95 CNN **fuses the entire conv backbone into ONE NeutronGraph op**. The ~32
+remaining nodes are the input-quant / output-dequant / NMS tail running on the A55s.
 
-Note: The eIQ Neutron NPU peak is ~4 TOPS. MobileNetV2 is a small model
-and does not saturate the NPU. Use larger models (ResNet-50, EfficientDet)
-for peak TOPS measurement.
-```
+⚠️ **That tail is normal *for this delegate* — but do not call it harmless.** The dossier's own
+e2e bottleneck table names it **"delegate fragmentation"** and identifies it as what *bounds the
+deployed number* on this board: the 48 ms in-process infer is **1 graph node on the NPU plus a
+32-node tail on the single-threaded A55**, and that infer dominates the frame. An earlier version
+of this file called it "not fragmentation" and it was wrong.
+
+Reference points, all [MEASURED] by the fleet (ground-truth §2.5) — quote these rather than
+inventing an "expected performance" table:
+
+| model | latency | IPS | delegation |
+|---|--:|--:|:--:|
+| yolov8n | 32.08 ms | 31.17 | 1 NeutronGraph / 33 |
+| yolov8s | 52.3 ms | 19.13 | 1 NeutronGraph / 34 |
+| yolov8m | 101.5 ms | 9.85 | 1 NeutronGraph / 34 |
+| yolov8l | 182.5 ms | 5.48 | 1 NeutronGraph / 34 |
+| yolov8x | 305.8 ms | 3.27 | 1 NeutronGraph / 34 |
+
+- Whole-accelerator **saturated** throughput: **86.25 IPS** (4-worker) [MEASURED] — a
+  *different metric* from batch-1. Never rank one against the other.
+- Deployable **e2e** pipeline: **18.1 fps** [MEASURED]. ⚠️ **The gap from 31 IPS is INSIDE the
+  inference call, not beside it** — the e2e infer is **48 ms** (vs the benchmark's 32 ms), and the
+  dossier attributes it to **op coverage**: one node on the NPU, a 32-node tail on the
+  single-threaded A55. It is **infer-bound**, not host-pre/post-bound. *(That distinction decides
+  the fix: more on-NPU op coverage, not a faster letterbox. The ARA240 is the board's host-bound
+  case — see `imx95-ara240` — and mixing the two diagnoses sends you to the wrong lever.)*
+- A yolov8n inference costs **0.61 CPU cores (~10%)** [MEASURED] — the offload leaves >90% of
+  the host free, which is the actual architectural argument for this NPU.
+
+⚠️ Only yolov8n was tiebroken across 3 specimens. An earlier 36.75 IPS reading was a
+cool-board outlier.
 
 ---
 
-## Expected Performance (FRDM-IMX95 EVK, BSP 6.6.x)
+## Op placement — this is Neutron-**S**, not C
 
-| Model | Backend | Avg Latency | TOPS |
-|-------|---------|-------------|------|
-| MobileNetV2 224 | NPU delegate | 2–4 ms | 0.2–0.4 |
-| MobileNetV2 224 | CPU (4 cores) | 15–25 ms | N/A |
-| ResNet-50 | NPU delegate | 8–15 ms | 0.8–1.2 |
-| EfficientDet-Lite0 | NPU delegate | 5–10 ms | 0.5–0.9 |
+Use `SupportedOperatorsS.md`. `DEPTH_TO_SPACE` is **not** accelerated (falls to the A55 — cheap,
+once per frame); `TRANSPOSE_CONV`, `RESIZE_BILINEAR`, `RESIZE_NEAREST_NEIGHBOR` **are**. So a
+pixel-shuffle upsample tail lands on the CPU while a transpose-conv tail stays on the NPU — a
+real model-design lever.
 
-*Values are approximate and depend on BSP version, thermal state, and memory bandwidth.*
+The driver-3.1.2-vs-converter-3.1.3 microcode mismatch warning is **benign** [MEASURED]: NPU vs
+host-CPU output agreed to ±1 int8 LSB, cosine 0.99997.
 
 ---
 
 ## Caveats
 
-- The eIQ Neutron delegate library path varies by BSP version. `check_eiq.sh` searches
-  common locations and exports `EIQ_DELEGATE_PATH` for use by `bench_npu.sh`.
-- `benchmark_model` must be installed. On NXP BSP images it is typically at
-  `/usr/bin/benchmark_model`. If missing, install `packagegroup-imx-eiq` via opkg/apt.
-- MobileNetV2 model is downloaded from TFLite model zoo if not cached at
-  `/tmp/mobilenet_v2_1.0_224.tflite`. Requires network access on first run.
-- If the NPU delegate fails to load, `benchmark_model` silently falls back to CPU.
-  Always check the "Loaded delegate" line in output to confirm NPU was used.
-- Thermal throttling during the benchmark will inflate latency numbers. The script
-  checks thermal state before and after and warns if significant temperature rise occurred.
+- **`/dev/neutron0` presence is not availability.** It means the driver bound. It says nothing
+  about another tenant holding the NPU. Do not build an "is the NPU free?" claim on it.
+- **The CMA precondition applies to the TFLite delegate path.** The dedicated 4 GiB
+  `neutron_memory` pool (neutron DTB) retires the hazard for the ONNX-EP path only; the delegate
+  path still draws from the 960 MiB `linux,cma`.
+- **The census is part of the measurement.** `bench_npu.sh` records loadavg and resident
+  inference-shaped tenants. A number measured under load is legitimate — pretending the board
+  was clean is not.
+- **The exact placement wording has not been re-verified verbatim by this repo** across
+  `benchmark_model` / `tflite_runtime` / native C. The parser is tolerant about surrounding text
+  and strict about the numbers, and reports UNKNOWN rather than success if it cannot find them.
+  *(Confirmation requested from the fleet sessions that built the native harness.)*
+
+## References
+
+- `references/imx95-ground-truth.md` §2 — the Neutron section, with provenance tags
+- `lib/neutron.sh` — the placement parser and the refusal gate

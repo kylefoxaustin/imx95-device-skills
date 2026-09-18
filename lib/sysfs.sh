@@ -124,16 +124,125 @@ thermal_zone_count() {
     ls -d /sys/class/thermal/thermal_zone*/ 2>/dev/null | wc -l
 }
 
-# max_thermal_temp_c — returns the highest temperature across all thermal zones in °C
+# max_thermal_temp_c — highest temperature across all thermal zones, in °C.
+#   Prints EMPTY (and returns 1) if no zone could be read.
+#
+#   ⚠️ It used to print its accumulator default of 0 in that case. A caller then
+#   recorded "0 C" as a MEASURED start temperature and its "temperature unknown"
+#   branch never fired, because "0" is not empty. A sensor that reports a
+#   plausible value when it read nothing is worse than one that reports nothing:
+#   0 °C is in range, so nothing downstream can tell it apart from a cold board.
 max_thermal_temp_c() {
-    local max=0
+    local max="" temp_milli temp_c
     for zone in /sys/class/thermal/thermal_zone*/; do
-        local temp_milli
-        temp_milli=$(sysfs_read "${zone}temp" "0")
-        local temp_c=$(( temp_milli / 1000 ))
-        [ "${temp_c}" -gt "${max}" ] && max="${temp_c}"
+        [ -r "${zone}temp" ] || continue
+        temp_milli=$(sysfs_read "${zone}temp" "")
+        [ -n "${temp_milli}" ] || continue
+        case "${temp_milli}" in *[!0-9-]*) continue ;; esac
+        temp_c=$(( temp_milli / 1000 ))
+        if [ -z "${max}" ] || [ "${temp_c}" -gt "${max}" ]; then max="${temp_c}"; fi
     done
+    [ -n "${max}" ] || return 1
     echo "${max}"
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ⚠️ DO NOT GATE A BENCHMARK ON max_thermal_temp_c. USE thermal_min_margin_c.
+#
+# MEASURED on this board, 2026-08-12, idle at loadavg 0.06:
+#     thermal_zone0  ana-thermal   51 °C   passive trip 105 °C
+#     thermal_zone1  a55-thermal   52 °C   passive trip 105 °C
+#     thermal_zone2  pf09         105 °C   passive trip 140 °C   <- PMIC
+#     thermal_zone3  pf53_soc     105 °C   passive trip 140 °C   <- PMIC
+#     thermal_zone4  pf53_arm     105 °C   passive trip 140 °C   <- PMIC
+#
+# The three PMIC regulator zones report a FLAT 105000 m°C constant. It is not a
+# temperature — it does not move, and it sits 35 °C below its own passive trip.
+# The SoC is at 52 °C.
+#
+# A max-across-zones compared to a hardcoded 80 °C therefore refuses EVERY run on
+# a stone-cold board. That is what happened the first time this gate met real
+# silicon. The failure is safe (it refuses rather than measuring hot), but a gate
+# that always refuses gets deleted by the next person, and then nothing is gated.
+#
+# The fix is to stop comparing absolute temperatures to a constant we invented,
+# and instead ask each zone how close it is to ITS OWN trip point — which is the
+# only threshold the hardware actually asserts. No zone-name allowlist needed:
+# the PMIC placeholder self-excludes because 105 against a 140 trip is a 35 °C
+# margin, while a genuinely hot A55 at 100 against its 105 trip is a 5 °C margin.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# thermal_min_margin_c — smallest (passive-trip − current) across all zones, in °C.
+#
+#   PRINTS: "<margin> <zone-type>"  — both on stdout, space-separated.
+#   Returns 1 and prints nothing if no zone with a usable trip could be read.
+#
+#   ⚠️ It does NOT set a global for the zone name, and that is deliberate. It used
+#   to, and callers do `MARGIN="$(thermal_min_margin_c)"` — a COMMAND SUBSTITUTION,
+#   which runs in a subshell, so the global died with the subshell and the report
+#   printed `to '' trip`. Caught on silicon. A function whose output is consumed by
+#   `$( )` can only communicate on stdout; anything else silently evaporates.
+#   Callers: read both fields, e.g.
+#       read -r MARGIN ZONE <<<"$(thermal_min_margin_c)"
+thermal_min_margin_c() {
+    local min="" minzone="" zone ztype temp trip tripty margin
+    for zone in /sys/class/thermal/thermal_zone*/; do
+        [ -r "${zone}temp" ] || continue
+        temp=$(sysfs_read "${zone}temp" "")
+        case "${temp}" in ''|*[!0-9-]*) continue ;; esac
+        ztype=$(sysfs_read "${zone}type" "unknown")
+
+        # Prefer the lowest passive/hot trip; fall back to critical.
+        trip=""
+        for tp in "${zone}"trip_point_*_temp; do
+            [ -f "${tp}" ] || continue
+            tripty=$(sysfs_read "${tp%_temp}_type" "")
+            case "${tripty}" in passive|hot|active) ;; *) continue ;; esac
+            local v; v=$(sysfs_read "${tp}" "")
+            case "${v}" in ''|*[!0-9-]*) continue ;; esac
+            # A trip <= 0 is an UNSET trip, not a 0 °C limit. Some drivers park
+            # unset trips at INT_MIN (seen on a host's iwlwifi zone: margin came
+            # out as -2147519, which would refuse every run forever). Ignore them.
+            [ "${v}" -gt 0 ] || continue
+            if [ -z "${trip}" ] || [ "${v}" -lt "${trip}" ]; then trip="${v}"; fi
+        done
+        if [ -z "${trip}" ]; then
+            for tp in "${zone}"trip_point_*_temp; do
+                [ -f "${tp}" ] || continue
+                local v; v=$(sysfs_read "${tp}" "")
+                case "${v}" in ''|*[!0-9-]*) continue ;; esac
+                [ "${v}" -gt 0 ] || continue
+                if [ -z "${trip}" ] || [ "${v}" -lt "${trip}" ]; then trip="${v}"; fi
+            done
+        fi
+        [ -n "${trip}" ] || continue
+
+        margin=$(( (trip - temp) / 1000 ))
+        if [ -z "${min}" ] || [ "${margin}" -lt "${min}" ]; then
+            min="${margin}"; minzone="${ztype}"
+        fi
+    done
+    [ -n "${min}" ] || return 1
+    echo "${min} ${minzone}"
+}
+
+# soc_thermal_temp_c — the SoC/CPU temperature, ignoring PMIC zones.
+#   For REPORTING a meaningful number. Gating still uses the margin above.
+soc_thermal_temp_c() {
+    local best="" zone ztype temp
+    for zone in /sys/class/thermal/thermal_zone*/; do
+        ztype=$(sysfs_read "${zone}type" "")
+        case "${ztype}" in
+            *a55*|*cpu*|*soc-thermal*|*ana*) ;;
+            *) continue ;;
+        esac
+        temp=$(sysfs_read "${zone}temp" "")
+        case "${temp}" in ''|*[!0-9-]*) continue ;; esac
+        temp=$(( temp / 1000 ))
+        if [ -z "${best}" ] || [ "${temp}" -gt "${best}" ]; then best="${temp}"; fi
+    done
+    [ -n "${best}" ] || return 1
+    echo "${best}"
 }
 
 # ---------------------------------------------------------------------------
@@ -171,13 +280,25 @@ cma_free_mb() {
 }
 
 # ---------------------------------------------------------------------------
-# GPU helpers (Vivante GC7000UL via devfreq)
+# GPU helpers — Arm Mali-G310 (1 core, r0p0) via devfreq
+#
+# ⚠️ NOT a Vivante GC7000UL. That is the i.MX8M Plus GPU, and it was named here
+# in the first version of this file — the same wrong-neighbouring-SoC drift as
+# the delegate bug, sitting one screen above it. Ground truth §1.1.
+#
+# ⚠️ AND THE GPU IS NOT AN ML TARGET ON THIS BOARD. Mali-G310 is graphics only:
+# OpenCL is an ICD stub (libOpenCLDriverStub.so) — there is no GPGPU compute
+# path. Do not offer it as an inference backend. [MEASURED]
+#
+# The vivante/galcore/etnaviv patterns below are retained ONLY as a fallback for
+# other i.MX parts a portable skill might touch; on this board the match should
+# come from the *gpu*/mali patterns.
 # ---------------------------------------------------------------------------
 
 # _find_gpu_devfreq — internal: finds the GPU devfreq sysfs directory
 _find_gpu_devfreq() {
-    # Try known driver name patterns
-    for pattern in "*gpu*" "*gc*" "*vivante*" "*galcore*" "*GC*"; do
+    # Try known driver name patterns (mali first — this board is Mali-G310)
+    for pattern in "*mali*" "*gpu*" "*gc*" "*vivante*" "*galcore*" "*GC*"; do
         local found
         found=$(ls -d /sys/class/devfreq/${pattern} 2>/dev/null | head -1)
         if [ -n "${found}" ]; then
@@ -190,7 +311,7 @@ _find_gpu_devfreq() {
         local driver
         driver=$(cat "${dev}device/uevent" 2>/dev/null | grep '^DRIVER=' | cut -d= -f2)
         case "${driver}" in
-            galcore|vivante|gc*|etnaviv) echo "${dev%/}"; return 0 ;;
+            mali*|panfrost|galcore|vivante|gc*|etnaviv) echo "${dev%/}"; return 0 ;;
         esac
     done
     echo ""
@@ -231,54 +352,51 @@ gpu_governor() {
 # NPU helpers (eIQ Neutron)
 # ---------------------------------------------------------------------------
 
-# npu_state — returns "loaded", "not_loaded", or "unknown"
-# Checks platform driver binding and lsmod
+# ⚠️ DO NOT ADD ethosu / vx PATHS TO ANYTHING BELOW.
+#
+# The first version of this file searched for libethosu_delegate.so (Arm Ethos-U65
+# = the i.MX93 NPU) and libvx_delegate.so (VeriSilicon VX = the i.MX8M Plus NPU),
+# and matched whichever it found first. Both are real NXP delegates. Neither is
+# this SoC's. A "search a list of plausible paths" helper is not robustness here —
+# it is a mechanism for binding to the wrong accelerator and reporting success.
+# i.MX95 has exactly ONE delegate. See references/imx95-ground-truth.md §1.1.
+
+# npu_state — "present" or "absent".
+#   ⚠️ PRESENCE, NOT AVAILABILITY. This says the Neutron driver bound. It says
+#   NOTHING about whether another tenant is using the NPU right now. Do not build
+#   an "is the NPU free?" check on this — see ground-truth §3.1 for why an
+#   occupancy claim that cannot be substantiated must refuse rather than guess.
 npu_state() {
-    # Check platform driver directories
     for path in /sys/bus/platform/drivers/neutron \
-                /sys/bus/platform/drivers/ethosu \
                 /sys/bus/platform/drivers/imx-neutron \
                 /sys/bus/platform/drivers/neutron-npu; do
-        if [ -d "${path}" ]; then
-            echo "loaded"
-            return 0
-        fi
+        [ -d "${path}" ] && { echo "present"; return 0; }
     done
 
-    # Check lsmod
-    if lsmod 2>/dev/null | grep -qE "^(neutron|ethosu|imx_neutron)"; then
-        echo "loaded"
-        return 0
-    fi
+    lsmod 2>/dev/null | grep -qE "^(neutron|imx_neutron)" && { echo "present"; return 0; }
 
-    # Check for device node
-    if ls /dev/neutron* /dev/ethosu* 2>/dev/null | grep -q .; then
-        echo "loaded"
-        return 0
-    fi
+    [ -e /dev/neutron0 ] && { echo "present"; return 0; }
 
-    echo "not_loaded"
+    echo "absent"
 }
 
-# npu_driver_path — returns the sysfs path of the NPU driver, or empty string
+# npu_driver_path — sysfs path of the Neutron driver, or empty string
 npu_driver_path() {
     for path in /sys/bus/platform/drivers/neutron \
-                /sys/bus/platform/drivers/ethosu \
-                /sys/bus/platform/drivers/imx-neutron; do
-        [ -d "${path}" ] && echo "${path}" && return 0
+                /sys/bus/platform/drivers/imx-neutron \
+                /sys/bus/platform/drivers/neutron-npu; do
+        [ -d "${path}" ] && { echo "${path}"; return 0; }
     done
     echo ""
 }
 
-# eiq_delegate_path — returns path to eIQ TFLite delegate .so, or empty string
+# eiq_delegate_path — the i.MX95 Neutron TFLite delegate, or empty string.
+#   Empty means "not present". It does NOT mean "use something else".
+#   Callers MUST treat empty as a refusal — lib/neutron.sh:neutron_require_delegate
+#   is the supported way to gate on this.
 eiq_delegate_path() {
-    for lib in /usr/lib/libethosu_delegate.so \
-               /usr/lib/libvx_delegate.so \
-               /usr/local/lib/libethosu_delegate.so \
-               /usr/lib/libNNDelegate.so \
-               /usr/lib/aarch64-linux-gnu/libethosu_delegate.so; do
-        [ -f "${lib}" ] && echo "${lib}" && return 0
-    done
+    local lib="${IMX95_NEUTRON_DELEGATE:-/usr/lib/libneutron_delegate.so}"
+    [ -r "${lib}" ] && { echo "${lib}"; return 0; }
     echo ""
 }
 

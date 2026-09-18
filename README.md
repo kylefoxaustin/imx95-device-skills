@@ -44,17 +44,25 @@ How much CMA memory is free?
 
 ## Platform
 
-| Property | Value |
-|----------|-------|
-| Board | NXP FRDM-IMX95 EVK |
-| SoC | i.MX 95 |
-| CPU | 6× Cortex-A55 @ 1.8 GHz |
-| MCU | Cortex-M7 @ 800 MHz + Cortex-M33 |
-| NPU | eIQ Neutron ~4 TOPS |
-| GPU | Vivante GC7000UL |
-| OS | Yocto Linux, kernel 6.6.x LTS |
-| Memory | LPDDR4/5 |
-| Storage | eMMC |
+Every row carries a provenance tag. Full table with sources:
+[`references/imx95-ground-truth.md`](references/imx95-ground-truth.md).
+
+| Property | Value | |
+|----------|-------|---|
+| Board | **NXP FRDM-IMX95-PRO** (`fsl,frdm-imx95-pro fsl,imx95`) | [MEASURED] |
+| SoC | i.MX 95 **rev 2.0** | [MEASURED] |
+| CPU | 6× Cortex-A55, 1.8 GHz under load (no big cluster) | [MEASURED] |
+| MCU | Cortex-M7 (remoteproc) + Cortex-M33 (**System Manager** — decides SCMI clocks/power-domains; board regulators are plain Linux) | [MEASURED] |
+| **NPU #1** | **eIQ Neutron-S**, `/dev/neutron0`, ~2–3 INT8 TOPS | dev [MEASURED] · TOPS [SOURCED] |
+| **NPU #2** | **Kinara ARA240** on M.2 — CNNs *and* a 7B LLM, ~40 TOPS | present [MEASURED] · TOPS [SOURCED] |
+| GPU | **Arm Mali-G310** (1 core, r0p0) — graphics only, OpenCL is an ICD stub | [MEASURED] |
+| OS | Yocto Linux **6.18**, gcc 15.2 on-board | [MEASURED] |
+| Memory | 16 GB LPDDR, ~13 GB/s aggregate | size [SOURCED] · bandwidth [MEASURED] |
+| Storage | eMMC 29.6 GB, 298 / 152 MB/s. ⚠️ **`/` is 100% FULL (~300 MB free)** | [MEASURED] |
+
+> ⚠️ **This is a DUAL-NPU board, and the GPU is not an ML target.** An earlier version of this
+> table listed a Vivante GC7000UL (that is i.MX8M Plus), a single ~4 TOPS NPU, and kernel 6.6.x.
+> All three were wrong, and the second NPU — the one that runs a 7B LLM — was missing entirely.
 
 ---
 

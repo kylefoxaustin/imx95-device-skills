@@ -183,7 +183,7 @@ echo "Available frequencies: $(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_
 - `scaling_max_freq` is set below 1800000 → someone has capped the frequency. Check `/etc/rc.local` or systemd services.
 - Cores 4–5 offline → check `echo 1 > /sys/devices/system/cpu/cpu4/online`
 
-#### 3b — GPU Frequency (Vivante GC7000UL)
+#### 3b — GPU Frequency (Arm Mali-G310 — graphics only, NOT an ML backend)
 
 ```bash
 echo "=== GPU Frequency Status ==="
@@ -191,7 +191,7 @@ GPU_DEVFREQ=""
 # Search for GPU devfreq node
 for dev in /sys/class/devfreq/*/; do
     name=$(cat "${dev}device/uevent" 2>/dev/null | grep DRIVER | head -1 || basename "${dev}")
-    if echo "${name}" | grep -qi "gpu\|gc\|vivante\|galcore"; then
+    if echo "${name}" | grep -qi "mali\|gpu\|gc\|vivante\|galcore"; then
         GPU_DEVFREQ="${dev}"
         break
     fi
@@ -213,37 +213,51 @@ fi
 
 #### 3c — NPU State
 
+> ⚠️ **`ethosu` is not this SoC's NPU.** An earlier version of this block searched for
+> `ethosu` drivers and `libethosu_delegate.so` / `libvx_delegate.so`. Those belong to the
+> **i.MX93** and **i.MX8M Plus**. On i.MX95 the driver is `neutron` and the delegate is
+> `libneutron_delegate.so`. See `references/imx95-ground-truth.md` §1.1.
+
 ```bash
 echo "=== NPU / eIQ Neutron State ==="
-# Check for NPU driver via platform devices
 NPU_FOUND=0
-for path in /sys/bus/platform/drivers/neutron* /sys/bus/platform/drivers/ethosu* \
-            /sys/bus/platform/drivers/imx-neutron*; do
+for path in /sys/bus/platform/drivers/neutron* /sys/bus/platform/drivers/imx-neutron*; do
     if [ -d "${path}" ]; then
-        echo "  NPU driver: $(basename ${path}) — loaded"
-        ls "${path}" 2>/dev/null | grep -v '^module$' | head -5 | indent
+        echo "  Neutron driver: $(basename ${path}) — bound"
         NPU_FOUND=1
     fi
 done
 
-# Check lsmod for NPU kernel module
-for mod in neutron ethosu imx_neutron; do
-    if lsmod 2>/dev/null | grep -q "^${mod}"; then
-        echo "  Kernel module '${mod}': loaded"
-        NPU_FOUND=1
-    fi
+for mod in neutron imx_neutron; do
+    lsmod 2>/dev/null | grep -q "^${mod}" && { echo "  Kernel module '${mod}': loaded"; NPU_FOUND=1; }
 done
 
-[ "${NPU_FOUND}" = "0" ] && echo "  NPU driver not detected — check BSP and device tree"
+[ -e /dev/neutron0 ] && { echo "  /dev/neutron0: present"; NPU_FOUND=1; }
+[ "${NPU_FOUND}" = "0" ] && echo "  Neutron NOT detected — no NPU number from this board is valid"
 
-# Check eIQ delegate library
-for lib in /usr/lib/libethosu_delegate.so /usr/lib/libvx_delegate.so \
-           /usr/local/lib/libethosu_delegate.so /usr/lib/libNNDelegate.so; do
-    [ -f "${lib}" ] && echo "  eIQ delegate: ${lib}"
+# TFLite stack
+for lib in /usr/lib/libneutron_delegate.so /usr/lib/liblitert_neutron_delegate.so; do
+    [ -f "${lib}" ] && echo "  Neutron delegate: ${lib}"
 done
+# ONNX Runtime EP — a SEPARATE stack with its own placement signal
+for lib in /usr/lib/libonnxruntime.so.1.24.3 /usr/lib/libNeutronDriver.so; do
+    [ -f "${lib}" ] && echo "  ORT Neutron EP: ${lib}"
+done
+# Wrong-SoC delegates: report, never use
+for lib in /usr/lib/libethosu_delegate.so /usr/lib/libvx_delegate.so; do
+    [ -f "${lib}" ] && echo "  ⚠️ WRONG-SoC delegate present: ${lib} — never load on i.MX95"
+done
+
+# The SECOND NPU. Presence only — occupancy is host-undetectable (ground-truth §3.1).
+lspci -nn 2>/dev/null | grep -i '1e58:0002' && echo "  ARA240 (Kinara M.2): enumerated" \
+    || echo "  ARA240: not enumerated"
 ```
 
-**Record:** CPU governor, current frequencies for all cores, GPU frequency, NPU driver state.
+**Record:** CPU governor, per-core frequencies, GPU frequency, Neutron driver + delegate state,
+ARA240 presence.
+
+> ⚠️ **`/dev/neutron0` presence is not availability, and the ARA240's occupancy cannot be
+> determined from the host at all.** Do not report either accelerator as "free".
 
 ---
 

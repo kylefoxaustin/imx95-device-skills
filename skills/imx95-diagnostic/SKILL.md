@@ -109,9 +109,9 @@ Output is structured text with section headers:
 
 ```
 === BOARD IDENTITY ===
-Model     : NXP i.MX95 19x19 EVK board
+Model     : NXP FRDM-IMX95-PRO
 SoC       : i.MX95 rev1.1
-Kernel    : 6.6.23-lts-next+gabcdef1234
+Kernel    : 6.18.0 (this board — Yocto; NOT 6.6.x)
 Uptime    : 2h 14m
 Hostname  : imx95-evk
 Timestamp : 2024-01-15T10:30:00Z
@@ -129,7 +129,7 @@ soc-thermal    : 48°C
 === MEMORY ===
 Total     : 3927 MB
 Available : 2841 MB  (72% free)
-CMA Total : 512 MB
+CMA Total : 4.94 GiB   (960 MiB linux,cma + 4 GiB neutron_memory — the neutron DTB is booted)
 CMA Free  : 480 MB  (94% free)
 ...
 
@@ -168,6 +168,6 @@ CMA Free  : 480 MB  (94% free)
 - `dmesg` requires read access to kernel ring buffer. On some hardened images, non-root
   users may not have access. Run as root for full output.
 - GPU devfreq node path varies by BSP version. The script searches multiple known paths.
-- NPU driver name varies: `neutron`, `ethosu`, or `imx-neutron` depending on BSP version.
+- NPU driver name is `neutron` or `imx-neutron`. It is NEVER `ethosu` — that is the i.MX93 Ethos-U65. See references/imx95-ground-truth.md §1.1.
 - Thermal zone numbering is not fixed — zone 0 may be CPU on one BSP and SoC on another.
   The script reads zone `type` files to label each zone correctly.

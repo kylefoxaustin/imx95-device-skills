@@ -2,10 +2,10 @@
 # lib/board_detect.sh — detect i.MX 95 board variant at runtime
 #
 # Exports:
-#   BOARD_MODEL   — full model string, e.g. "NXP i.MX95 19x19 EVK board"
+#   BOARD_MODEL   — full model string, e.g. "NXP FRDM-IMX95-PRO" [MEASURED]
 #   BOARD_SOC     — SoC identifier, e.g. "i.MX95"
 #   BOARD_REV     — SoC/board revision, e.g. "1.1"
-#   BOARD_COMPAT  — first compatible string, e.g. "fsl,imx95-19x19-evk"
+#   BOARD_COMPAT  — first compatible, e.g. "fsl,frdm-imx95-pro" (full: "fsl,frdm-imx95-pro fsl,imx95") [MEASURED]
 #   BOARD_VARIANT — short variant tag: "frdm-evk" | "19x19-evk" | "custom" | "unknown"
 #
 # Usage:

@@ -4,7 +4,7 @@
 
 The i.MX 95 SoC uses LPDDR4/LPDDR5 memory with a unified physical address space shared
 between the Cortex-A55 application processor cluster, the Cortex-M7 and Cortex-M33
-real-time cores, the eIQ Neutron NPU, the Vivante GC7000UL GPU, the ISP (Image Signal
+real-time cores, the eIQ Neutron NPU, the Arm Mali-G310 GPU (graphics only), the ISP (Image Signal
 Processor), and the VPU (Video Processing Unit).
 
 Because multiple hardware engines perform DMA directly into system memory, the Linux kernel

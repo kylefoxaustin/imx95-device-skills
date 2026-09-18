@@ -98,15 +98,37 @@ Frames    : 30/30 captured, 0 dropped
 
 ---
 
-## Common i.MX 95 Camera Sensors
+## 🔴 Camera hardware on this board is [UNKNOWN] — DETECT, DO NOT ASSERT
 
-| Sensor | Driver | Interface | Max Resolution |
-|--------|--------|-----------|----------------|
-| OV5640 | ov5640 | MIPI-CSI2 | 2592×1944 |
-| OV5647 | ov5647 | MIPI-CSI2 | 2592×1944 |
-| IMX219 | imx219 | MIPI-CSI2 | 3280×2464 |
-| IMX477 | imx477 | MIPI-CSI2 | 4056×3040 |
-| AR0521 | ar0521 | MIPI-CSI2 | 2592×1944 |
+> **There was a table here listing OV5640 / OV5647 / IMX219 / IMX477 / AR0521 as
+> "Common i.MX 95 Camera Sensors", with driver names and max resolutions. It was
+> written by an agent that had never seen this board, and NONE of it is confirmed.**
+> A companion doc also hardcoded `i2cdetect -y 4` and `-y 5` as CSI0/CSI1. Also unconfirmed.
+>
+> The table is deleted rather than corrected, because a plausible sensor list is worse than no
+> list: an agent that "knows" the sensor is an OV5640 will interpret a blank frame as a pipeline
+> bug and spend the session debugging a pipeline for a sensor that is not attached.
+
+**What IS established** (`references/imx95-ground-truth.md` §8): the pipeline shape is
+`Sensor (I²C) → MIPI CSI-2 RX → ISI → V4L2` [SOURCED]. That is all.
+
+### What this skill must do instead
+
+1. **Enumerate, never assume:** `v4l2-ctl --list-devices`, then `v4l2-ctl -d <dev> --info` and
+   `--list-formats-ext` for each.
+2. **Match by DRIVER NAME, never by device number.** `/dev/videoN` numbering is not stable
+   across BSP updates or USB-camera insertion — a skill that hardcodes `/dev/video0` will
+   silently address the wrong device.
+3. **Scan the I²C buses that exist**, rather than assuming which two are CSI:
+   `for b in /dev/i2c-*; do i2cdetect -y "${b##*i2c-}"; done`
+   *(Known-present expanders, so you can tell them apart from a sensor:* **PCAL6416A** *at
+   i2c-2 @0x20 and* **PCAL6524** *at i2c-3 @0x22 [MEASURED].)*
+4. **Report what was found and stop.** If nothing is detected, say "no MIPI-CSI sensor detected"
+   — do not suggest a probable sensor.
+
+*(Question outstanding with `@imx95-media-test`, who did this board's calibrated model prep and is
+the fleet's camera owner. When it is answered, the facts go into `imx95-ground-truth.md` §8 with
+tags, and this section gets replaced by measured content.)*
 
 ---
 
