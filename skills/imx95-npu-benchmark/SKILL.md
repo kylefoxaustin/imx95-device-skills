@@ -57,10 +57,23 @@ success. A plausible number with no placement line has exactly the shape of all 
 > output. A broken run is also a **fast** run, so timing and placement both point the wrong way.
 >
 > ⇒ **A performance number is not shippable until an output-correctness gate has passed on the same
-> artifact.** Run the fleet's detection gate (`yolo_output_gate.py` in the qualcomm results tree)
-> or an equivalent for your model class, and quote the two results together. Exit 0 here plus a
-> silent accuracy failure is exactly the "broken is faster" defect this repo exists to stop —
-> one layer past the one it already catches.
+> artifact.** Exit 0 here plus a silent accuracy failure is exactly the "broken is faster" defect
+> this repo exists to stop — one layer past the one it already catches.
+>
+> ### The gate, and why a cosine is not it
+> ```bash
+> # host-side, on the captured output tensor vs an fp32 reference
+> python3 ~/Documents/GitHub/qualcomm/results/bench_data/tools/yolo_output_gate.py \
+>     --out run.npy --ref fp32.npy --json gate.json     # exit 0 = PASS, 2 = VOID
+> python3 .../yolo_output_gate.py --self-test           # verified green 2026-09-18
+> ```
+> ⚠️ **Do not substitute a whole-tensor cosine — it is structurally blind here.** `output0` is
+> `[1,84,8400]`: 4 box channels of magnitude ~hundreds plus 80 score channels in `[0,1]`, so dead
+> scores move the norm in the 4th decimal. Measured by the fleet: IQ-9075 whole-tensor **0.9997**
+> with **0 detections**; Orin **0.9955** with **0 detections**. The gate's own self-test plants the
+> zeroed-scores case and reports `whole_cos=1.0, gate=VOID`.
+> **This also applies to the Neutron's headline `corr 0.9998` / `cosine 0.99997`** — aggregate
+> agreement, not detection correctness (ground truth §2).
 > *(Gap found by the 2026-09-17 cold-card drill: nothing in this repo said so before.)*
 
 ---

@@ -122,6 +122,24 @@ Present on the board [MEASURED, `ls -la /usr/lib`]:
 **Driver version:** 3.1.2 [MEASURED] · **matched converter SDK: 3.1.3** (benign 1-patch mismatch) [MEASURED]
 **Numerical agreement vs int8 CPU:** corr **0.9998** [MEASURED]; an independent native-C harness
 measured ±1 int8 LSB / cosine **0.99997** [MEASURED]
+
+> ### 🔴 THOSE TWO NUMBERS ARE WHOLE-TENSOR METRICS AND THEY ARE BLIND TO THE FAILURE THAT MATTERS
+> They establish *"the NPU computes the same tensor as the CPU for this graph"* — worth having, and
+> **not** an output-correctness gate. The fleet's `yolo_output_gate.py` exists because a
+> whole-tensor cosine let a shipped defect through twice:
+> ```
+> IQ-9075   whole-tensor 0.9997   scores-only 0.000000   0 detections
+> Orin AGX  whole-tensor 0.9955   scores-only 0.059      0 detections
+> ```
+> `output0` is `[1,84,8400]`: 4 box channels of magnitude ~hundreds plus 80 score channels in
+> `[0,1]`. Cosine is a normalised dot product, so **the boxes dominate the norm and 80 dead channels
+> move it in the 4th decimal** — the signal is 95% of the *channels* and ~0% of the *norm*. A
+> post-sigmoid range check is blind too: `[0.0, 0.0]` is inside `[0,1]`.
+>
+> I ran that gate's `--self-test` [MEASURED 2026-09-18]: with the scores zeroed it reports
+> `gate=VOID scores_cos=0.0` while **`whole_cos=1.0`** — the naive metric would have passed it.
+> ⇒ **Never quote 0.9998 / 0.99997 as evidence a detection model is correct.** They are aggregate
+> agreement; detections need the per-channel gate (§2.5).
 **Speed vs the A55 for the same int8 graph:** ~**12×** [MEASURED]
 
 > ### 🔴 PLACEMENT PROVES EXECUTION, NOT CORRECTNESS — the second gate, added 2026-09-17
