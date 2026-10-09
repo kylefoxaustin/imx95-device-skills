@@ -173,6 +173,43 @@ _NODE_CITED='mmcblk[0-9]|mmc[0-9]|/dev/root|nvme[0-9]|findmnt|lsblk|\[UNKNOWN|\[
 _HOSTNAME_TOKEN='imx95evk|\bhostname\b'
 _MODEL_CITED='/proc/device-tree/model|device-tree model|NOT UNIQUE|not an identity|NOT AN IDENTITY|non-uniqueness|FRDM-IMX95-PRO'
 
+# ── R6: a cross-reference may name its target's LOCATION, not its STATUS ─────
+# @95emulator's rule, from auditing their own three pointers into the registry
+# card's DISK entry: all three survived THREE rewrites of that entry tonight,
+# because every one names only WHERE the fact lives, never what it IS.
+#
+#   ✅ "see the DISK entry"                     survives any rewrite of DISK
+#   ❌ "which is disputed and withheld, see §5" asserts §5's STATE; rots when §5 changes
+#
+# A location-only pointer is rot-proof BY CONSTRUCTION, so there is nothing to
+# sweep — better than a recurring inbound-reference audit, which is a cost
+# someone eventually skips.
+#
+# ⚠️ SCOPE BREAK, STATED: every other rule here reads TABLE ROWS ONLY. R6 reads
+# PROSE TOO, because the defect that motivated it was in a blockquote — a §9
+# census note telling the reader §5's figure was "disputed and withheld" hours
+# after §5 was corrected. A table-rows-only R6 could not catch its own cause.
+#
+# 🔴 AND HALF OF THE RULE IS DELIBERATELY NOT IMPLEMENTED. The rule also forbids
+# a pointer QUOTING its target's VALUE ("see §5 for the 14 GB figure"). A
+# magnitude check for that was built, validated, and then NOT SHIPPED, because
+# measured against the live ground truth it fired three times and all three were
+# legitimate SUMMARY rows:
+#     | Clocks | 24 SCMI + 2 local vpu-csr — see §6.1 |
+#     | Board regulators | 19 regulator-fixed (0 GPIO) — see §6.2 |
+#     2. The PMIC thermal zones report a flat 105 C placeholder — see §2.6
+# A summary that states a headline value and points to the detail is good
+# documentation. Whether a value is being SUMMARISED (legitimate) or QUOTED from
+# the target (rot-prone) is invisible to a regex — both are "a number near a
+# pointer". Shipping it would have produced a rule that fires on normal
+# structure, which is how R3's first draft earned 20+ false positives and how a
+# checker trains people to ignore it. ⇒ The STATUS arm ships (1 true positive on
+# the real defect, 0 false positives across the live file); the VALUE arm does
+# not. Half of @95emulator's rule is lintable and half is not, and that is a
+# measurement, not an opinion.
+_PTR_TOKEN='see (the )?§[0-9]|see the [A-Za-z][A-Za-z-]* (entry|gotcha|section|note|table|block)|§[0-9.]+ (above|below)|see (above|below)'
+_TARGET_STATUS='disputed|withheld|unresolved|conflicting|contradicted|superseded|stale|pending|outdated|is open|still open|not yet|TBD|awaiting'
+
 # Not discharge-able: no artifact on the board establishes card form factor.
 _BANNED_TOKEN='microSD|micro-SD'
 # ...except the rule's own prose, which must be able to name what it forbids.
@@ -199,6 +236,23 @@ lint_file() {   # <path>
     [ -f "$f" ] || { echo "relation_lint: no such file: $f" >&2; return 3; }
     while IFS= read -r line; do
         n=$((n + 1))
+        # R6 runs on PROSE TOO (see the scope-break note above), so it sits
+        # BEFORE the table-rows-only gate. Split into sentences; a sentence
+        # containing a pointer must not also describe its target's status.
+        # NOTE `|| [ -n "$sent" ]`: a `read` loop DROPS the final line when
+        # there is no trailing newline, and a pointer lives at the END of a
+        # sentence almost by definition ("...see §5."). Without this, R6
+        # reported clean on every file while never examining a single pointer
+        # — inert, and indistinguishable from passing.
+        while IFS= read -r sent || [ -n "$sent" ]; do
+            printf '%s' "$sent" | grep -qiE "$_PTR_TOKEN" || continue
+            printf '%s' "$sent" | grep -qiE "$_TARGET_STATUS" || continue
+            _report "$f" "$n" R6 \
+              "cross-reference describes its target's STATUS — name only where the fact lives, or the pointer rots when the target is corrected" "$sent"
+        done <<EOF
+$(printf '%s' "$line" | sed -E 's/([.!?])[[:space:]]/\1\n/g')
+EOF
+
         # Fact rows only. Everything else is prose and out of scope by design.
         case "$line" in \|*) ;; *) continue ;; esac
 
@@ -332,6 +386,32 @@ self_test() {
     else
         echo "  [FAIL] hostname row slipped — two boards answer to it"; fail=$((fail + 1))
     fi
+
+    # (a3) R6 — fires on the REAL §9 census note defect, and stays quiet on
+    # @95emulator's three real card pointers, which are a NEGATIVE CONTROL FROM
+    # A DIFFERENT AUTHOR — stronger than fixtures written by the rule's author,
+    # which is how this script's first #2 fixture went wrong.
+    echo "--- (a3) R6 must FLAG a status-describing pointer (real defect text)"
+    _run_one "> would destroy the thing it exists to prove. For the board's *current* free space — which is disputed and withheld — see §5."
+    if [ "$FINDINGS" -gt 0 ]; then
+        echo "  [PASS] status-describing pointer flagged"; pass=$((pass + 1))
+    else
+        echo "  [FAIL] R6 silent on its own motivating defect — INERT, do not ship"; fail=$((fail + 1))
+    fi
+
+    echo "--- (a4) R6 must stay SILENT on @95emulator's location-only pointers"
+    local lp
+    for lp in \
+      '(Free-space figure deliberately NOT repeated here — see the DISK gotcha, and run `df`.)' \
+      '- **★ Disk/free-space: ONE entry owns this — see the DISK gotcha below. Do not add a second.**' \
+      'figures live in the single DISK gotcha above — `df` is the truth' ; do
+        _run_one "$lp"
+        if [ "$FINDINGS" -eq 0 ]; then
+            pass=$((pass + 1)); echo "  [PASS] quiet: $(printf '%s' "$lp" | cut -c1-54)…"
+        else
+            fail=$((fail + 1)); echo "  [FAIL] false positive on a location-only pointer"
+        fi
+    done
 
     echo "--- (c) must stay SILENT on legitimate fact rows"
     local g
