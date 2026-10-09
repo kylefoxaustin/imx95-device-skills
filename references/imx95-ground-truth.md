@@ -35,6 +35,63 @@ Every fact carries exactly one tag. **A fact with no tag is a bug in this file, 
 > an exit code is read as a stop. The old `check_eiq.sh` warned *"NPU inference will fall back to
 > CPU"* and then benchmarked six A55 cores — the warning was present, correct, and useless.
 
+> ### ⭐⭐ THE SECOND RULE — ADDED 2026-10-08, AND IT COST FOUR DEFECTS IN ONE EVENING
+> # A RELATION NEEDS ITS OWN PROVENANCE.
+> **The tag table above tags *values*. Nothing in it tags the *sentence joining two values* — and
+> that is where four consecutive defects lived, with every number involved correct the whole time.**
+>
+> | the claim | the relation asserted | reality |
+> |---|---|---|
+> | "the eMMC" meaning *where the rootfs is* | IDENTITY | two different devices |
+> | 29.6 GB contradicts 56 G | EQUIVALENCE *(same filesystem)* | two different devices |
+> | "microSD", from the board's documented slot | IDENTITY *(slot = card)* | slot ≠ card form factor |
+> | two `.ORIG` copies **because** two boot partitions | CAUSE | documented otherwise, in this very file |
+>
+> A relation inherits the confidence of the well-tagged facts on either side of it while resting on
+> nothing itself. It does not look like a number, so it never gets a tag.
+>
+> ## THE TEST, AND IT IS ONE QUESTION
+> ### **"Name the artifact that establishes this JOIN."** Not the operands — the join.
+>
+> **If a sentence puts *is*, *is the same as*, *because*, or *that is why* between two tagged facts:
+> cite the artifact, or tag the sentence `[UNVERIFIED]`.** A relation with no citation is
+> [UNVERIFIED] no matter how well-provenanced its operands are.
+>
+> **Why this is a real test and not a slogan: in three of the four, the artifact EXISTED, was in
+> reach, and said otherwise.**
+>
+>     identity of `/`        ->  findmnt /    one command. Nobody ran it for days.
+>     same-filesystem claim  ->  lsblk        would have shown two devices instantly.
+>     the .ORIG mechanism    ->  dossier §2, ALREADY READ, and line 271 OF THIS FILE.
+>
+> Only "microSD" needed an artifact that does not exist on the board at all — form factor is not
+> electrically visible — and there the correct move is the one taken: **leave it [UNKNOWN].**
+>
+> **Two free sub-rules that kill three of the four outright:**
+> 1. **A noun naming hardware carries its device node.** "eMMC" → `mmcblk0`; "the rootfs" →
+>    `/dev/mmcblk1p2`. Applies to any name with more than one possible referent.
+> 2. **Before writing a mechanism, grep this file for the fact.** Defect #4 was documented ~75 lines
+>    from where the guess was typed. **The failure was not reasoning — it was not searching the
+>    artifact you are already inside.** "Do I already know this?" is cheaper than the reasoning it
+>    replaces.
+>
+> ### ⚠️ The mechanical check catches THREE of the four. Do not read it as four.
+> `evals/relation_lint.sh` enforces this rule on **fact rows only**, and is validated in both
+> directions (`--self-test`, 9 checks) against the historical defect lines **taken verbatim from git
+> history**. It catches #1, #3 and #4. **It cannot catch #2** — that line cited a device node *and*
+> `§5`, so every rule is correctly discharged by it; the error was an **unstated premise** (that both
+> mounts were on one device), and no keyword check can see a premise that was never written down.
+> #2 needed a command (`lsblk`), not a checker.
+>
+> **The lint's own first draft claimed 4/4 — because its #2 fixture was a sentence I invented to make
+> the test pass.** That is this same defect class, committed while building the tool meant to prevent
+> it: evidence fabricated to support a join. Fixtures must be `git show`-able, never recalled.
+> **And its first run on this file produced 20+ findings, nearly all false** (it fired on every
+> explanatory "because" in prose) — the opposite failure, and equally useless, since a checker nobody
+> believes is a checker nobody reads. It was narrowed by *scope*, not by sensitivity.
+>
+> *Rule proposed by @95emulator from the four cases; the four cases were mine.*
+
 **Primary source:** `IMX95_BOARD_DOSSIER.md` v2.0 (2026-07-16), author Kyle Fox, at
 `~/Documents/GitHub/qualcomm/results/IMX95_BOARD_DOSSIER.md` (`md5 360307ff…`; the copy in
 `qualcomm/distribution/` is byte-identical. ⚠️ The copy at
@@ -64,10 +121,36 @@ source, until reconciled).
 | Add-in NPU | **Kinara ARA240** on M.2, PCI `0000:01:00.0` `1e58:0002`, driver `uiodma` | [MEASURED] |
 | ARA240 peak | ~40 TOPS | [SOURCED] |
 | Real-time cores | **Cortex-M7** (`imx-rproc`, attached/running) + **Cortex-M33** (System Manager) | [MEASURED] |
-| eMMC `mmcblk0` | **29.6 GB** (62160896 sectors). Bus: **HS400 enhanced strobe, 8-bit, 200 MHz**. Raw-media read **223 MB/s** (`dd iflag=direct`) | [MEASURED 2026-10-08] |
-| SD card `mmcblk1` | **58 GB** (121634816 sectors; 121634816 × 512 B = 62.3 GB decimal = 58.0 GiB, i.e. a **64 GB-marketed card** — not a discrepancy). Bus: **SD UHS SDR104, 4-bit, 208 MHz**. Raw-media read **83.7 MB/s** | [MEASURED 2026-10-08] |
+| eMMC `mmcblk0` capacity | **29.6 GB** (62160896 sectors, from `/sys/block`) | [MEASURED 2026-10-08] |
+| eMMC `mmcblk0` raw sequential read | **223 MB/s** (`dd iflag=direct`, 512 MiB, raw block device) | [MEASURED 2026-10-08] |
+| eMMC bus *configuration* | **HS400 enhanced strobe, 8-bit, 200 MHz** — read from `/sys/kernel/debug/mmc0/ios` | [SOURCED — kernel driver] |
+| SD card `mmcblk1` capacity | **58 GB** (121634816 sectors; × 512 B = 62.3 GB decimal = 58.0 GiB, i.e. a **64 GB-marketed card** — not a discrepancy) | [MEASURED 2026-10-08] |
+| SD `mmcblk1` raw sequential read | **83.7 MB/s** (same method) | [MEASURED 2026-10-08] |
+| SD bus *configuration* | **SD UHS SDR104, 4-bit, 208 MHz** — from `/sys/kernel/debug/mmc1/ios` | [SOURCED — kernel driver] |
+
+> ⚠️ **Why the bus rows are SOURCED and not MEASURED, even though someone ran a command for them.**
+> `ios` is the **driver reporting its own configuration** — what timing mode it negotiated and
+> believes it is using. That is a claim about a *setting*, not a measurement that the bus *achieved*
+> it. The throughput rows above are MEASURED (a transfer was timed); the timing strings are the
+> driver's word. Mixing them under one tag is the defect this file exists to prevent, and an earlier
+> revision of this very table did exactly that. Distinction raised by @95emulator about their own
+> measurement.
 | …its **form factor** | **[UNKNOWN]** — `type=SD` / `name=SD64G` establish *an SD card of 64 GB marketed capacity*. `name` is a card-supplied vendor string, not a measurement, and **neither field says micro- vs full-size.** Earlier revisions of this file said "microSD"; that was inferred from the board's documented slot and has been withdrawn. | [UNKNOWN] |
-| ⚠️ Storage speed | **298 MB/s read / 152 MB/s write** — **the eMMC, file-level, cache status unrecorded.** Dossier §9 gives the method as *"fio on the real eMMC mount (not tmpfs)"* = `/run/media/root-mmcblk0p2` = `mmcblk0p2`. The SD card is **physically excluded**: SDR104 at 4 bits ceilings near 104 MB/s. But the dossier does **not** record whether fio ran `direct=1`, fio buffers by default, and 298 exceeds the raw-media 223 above — **so do not quote this as a media figure.** | [SOURCED — qualcomm dossier §9; this repo is the relay, not the instrument] |
+| ⚠️ Storage speed | **298 MB/s read / 152 MB/s write** — **the eMMC (`mmcblk0`), file-level, cache status unrecorded.** Do **not** quote as a media figure: the dossier records the tool and the mount but **not** whether fio ran `direct=1`, fio buffers by default, and 298 exceeds the raw-media 223 above. | [SOURCED — qualcomm dossier §9; this repo is the relay, not the instrument] |
+
+> **The "it is the eMMC" join, with its legs labelled** — because the conclusion is better supported
+> than any one leg, and worse supported than it looks if you only read one:
+>
+> | leg | says | tag |
+> |---|---|---|
+> | dossier §9 method | *"fio on the real eMMC mount (not tmpfs)"* = `/run/media/root-mmcblk0p2` = `mmcblk0p2` | [SOURCED] |
+> | raw `dd` on `mmcblk1` | 83.7 MB/s — the SD card did not deliver anything near 298 | [MEASURED] |
+> | bus-ceiling argument | SDR104 × 4-bit ceilings near 104 MB/s ⇒ the SD card *cannot* | [SOURCED] × [SOURCED] |
+>
+> The third leg is the one that *sounds* strongest and is the weakest: it multiplies a
+> **driver-reported** timing mode by a **spec** ceiling, so it is SOURCED throughout and may not be
+> set against a MEASURED figure as if it settled the matter. The honest statement is that one
+> MEASURED leg and two SOURCED legs agree, and no leg alone carries it.
 | 🔴 **The board runs from the SD card, NOT the eMMC** | `/` is `/dev/mmcblk1p2` (57.7 G ext4). The eMMC holds a **second, non-live** rootfs at `mmcblk0p2`. See §5 — this changes every flashing, imaging and "which DTB is live" question. | [MEASURED 2026-10-08] |
 | OS | Yocto, **Linux 6.18**, **gcc 15.2 on-board** | [MEASURED] |
 | Hostname | `imx95evk` | [MEASURED] |
@@ -436,7 +519,7 @@ the same prompt even at temperature 0**, which breaks prompt caching, golden-out
 | Staging partition | `/run/media/root-mmcblk0p2` = `/dev/mmcblk0p2`, **11 G total, 555 M free, 95%** — a partition of the **eMMC**, i.e. a *different physical device* from `/` | [MEASURED 2026-10-08] |
 | 🔴 The eMMC holds a **second, non-live rootfs** | `mmcblk0p2` (10.6 G ext4) is an ext4 root that is **not** the running one. `mmcblk0p1` and `mmcblk1p1` are **two 256 M vfat boot partitions**, both mounted. | [MEASURED 2026-10-08] |
 | Live boot partition | **`/run/media/boot-mmcblk1p1`** — the **SD card's** vfat, consistent with booting from the card. Both `.ORIG` DTB backups live on the SD card too (that partition **and** `/root`) — see §2.3; the eMMC's boot partition is not involved. | [SOURCED — qualcomm dossier §2] |
-| Which one to stage on | `/` (SD card) is the roomier by ~16× — 8.7 G vs 555 M. **The opposite of the August advice.** Still `df -h` both. | [MEASURED 2026-10-08] |
+| Which one to stage on | `/` (`mmcblk1p2`, SD card) is the roomier by ~16× — 8.7 G vs 555 M. **The opposite of the August advice.** Still `df -h` both. | [MEASURED 2026-10-08] |
 | Full block layout | `mmcblk0` 29.6 G eMMC → p1 256 M vfat `/run/media/boot-mmcblk0p1`, p2 10.6 G ext4 `/run/media/root-mmcblk0p2` · `mmcblk0boot0/1` 31.5 M each · `mmcblk1` 58 G SD card → p1 256 M vfat `/run/media/boot-mmcblk1p1`, p2 57.7 G ext4 **`/`** | [MEASURED 2026-10-08] |
 | Uptime at probe | **29 days** — so an undated PID from "one boot" may still be live, but is still unsafe to rely on | [MEASURED 2026-10-08 22:20] |
 | TFLite C API | `/usr/lib/libtensorflow-lite.so.2.19.0` **exports the full C API** | [MEASURED] |
