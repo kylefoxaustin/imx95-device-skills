@@ -181,7 +181,12 @@ printf "  %-24s: %d\n" "Capture devices"       "${CAPTURE_COUNT}"
 if [ "${CAPTURE_COUNT}" -gt 0 ]; then
     echo ""
     echo "  To test capture, run:"
-    echo "    bash skills/imx95-camera-setup/scripts/test_capture.sh /dev/video0"
+    echo "    bash skills/imx95-camera-setup/scripts/test_capture.sh <a CAPTURE node from above>"
+    echo ""
+    echo "  ⚠️ Do NOT pass /dev/video0 reflexively. MEASURED on the fleet"
+    echo "     FRDM-IMX95-PRO (2026-10-09): /dev/video0 is the C&M Wave6 VPU"
+    echo "     DECODER. All four /dev/video* nodes on that board are CODECS"
+    echo "     (Wave6 dec/enc, mxc-jpeg dec/enc) and none is a camera."
 else
     echo ""
     echo "  No capture devices found. Troubleshooting steps:"

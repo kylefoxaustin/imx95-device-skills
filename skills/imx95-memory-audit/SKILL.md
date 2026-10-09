@@ -34,6 +34,33 @@ Performs a detailed memory audit of the i.MX 95 board. Reports total/free/availa
 CMA allocation and usage per region, DMA-BUF heap state, top-10 processes by RSS, hugepage
 state, vmalloc usage, and top slab consumers.
 
+> ## ⭐ CMA IS NOT ROUTINE ON THIS BOARD — IT DECIDES WHETHER THE NPU RAN
+>
+> `NEUTRON_IOCTL_BUFFER_CREATE` **fails SOFT**: when it cannot get contiguous memory the whole
+> graph silently goes to the six A55 cores and returns a **perfectly plausible latency**. Nobody
+> gets an error. You benchmark the CPU and call it an NPU number.
+>
+> **Measured layout on this board** (`references/imx95-ground-truth.md` §2.2–2.3):
+>
+> | region | size | note |
+> |---|--:|---|
+> | `linux,cma` | **960 MiB** | the general pool the **TFLite delegate** path draws from |
+> | `neutron_memory` (`shared-dma-pool`) | **4 GiB** | dedicated; added by the neutron DTB |
+> | **`CmaTotal`** | **4.94 GiB** | was 960 MiB before the DTB swap |
+>
+> ⚠️ **An earlier version of this skill said `linux,cma` was 512 MB and invented a "never reduce
+> below 320 MB" floor.** Both were fabricated. It also never mentioned `neutron_memory` — the pool
+> without which the ONNX Runtime Neutron EP cannot initialise, and whose absence is why the Neutron
+> was believed "CNN-only" for months.
+>
+> 🔴 **Never propose restoring the stock DTB as a cleanup.** It silently breaks the board into the
+> CNN-only-looking state. `CmaTotal > 4 GiB` means the neutron DTB is booted — **leave it**.
+>
+> ✅ **CmaFree movement is EVIDENCE, not just a hazard:** a real Neutron offload **drops CmaFree
+> (~2 MB)**; a silent CPU fallback does not move it at all [MEASURED]. Sample it *during* an
+> inference — the buffer is freed at process exit, so a before/after comparison reads "no drop" on
+> a perfectly healthy run.
+
 Use this skill:
 - When the user reports "out of memory", "allocation failed", or "CMA exhausted"
 - Before loading a large ML model or starting a camera pipeline

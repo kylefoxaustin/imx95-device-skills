@@ -1,7 +1,7 @@
 # i.MX 95 Sysfs Paths Reference
 
 This document lists all important sysfs and procfs paths on the i.MX 95 (FRDM-IMX95 EVK,
-kernel 6.6.x LTS). Paths are organized by subsystem. Use this as a quick reference when
+kernel 6.18 on this board; the BSP release line is a different question). Paths are organized by subsystem. Use this as a quick reference when
 writing new skills or debugging board issues.
 
 ---
@@ -100,18 +100,27 @@ writing new skills or debugging board issues.
 /proc/slabinfo                          # Kernel slab allocator statistics
 ```
 
-**CMA regions on i.MX 95 (typical BSP configuration):**
+**CMA regions — MEASURED on this board** (`references/imx95-ground-truth.md` §2.2–2.3):
 
 | Region | Size | Used by |
-|--------|------|---------|
-| cma-vpu | 256 MB | VPU (video encode/decode) |
-| cma-isp | 128 MB | ISP (camera pipeline) |
-| cma-npu | 64 MB | NPU inference buffers |
-| cma-default | 64 MB | General DMA allocations |
+|--------|--:|---------|
+| `linux,cma` | **960 MiB** | general DMA; the **TFLite Neutron delegate** path draws from here |
+| `neutron_memory` (`shared-dma-pool`) | **4 GiB** | dedicated; added by `imx95-19x19-frdm-pro-neutron.dtb` |
+| **`CmaTotal`** | **4.94 GiB** | 960 MiB before the DTB swap |
+
+> ⚠️ **An earlier version of this file listed `cma-vpu 256 MB / cma-isp 128 MB / cma-npu 64 MB /
+> cma-default 64 MB` as the "typical BSP configuration". Those regions were invented.**
+>
+> 🔴 `CmaTotal > 4 GiB` means the neutron DTB is booted. **Leave it.** Without it the ONNX Runtime
+> Neutron EP cannot initialise — its 2 GiB request fails against the stock 960 MiB pool and the
+> graph silently runs on the A55s at a plausible latency.
+>
+> ✅ A real Neutron offload **drops `CmaFree` (~2 MB)**; a silent CPU fallback does not move it.
+> Sample *during* the inference — the buffer is freed at process exit.
 
 ---
 
-## GPU (Vivante GC7000UL)
+## GPU (Arm Mali-G310, 1 core r0p0 — graphics only; OpenCL is an ICD stub)
 
 ```
 /sys/class/devfreq/<gpu-devfreq-node>/
@@ -144,23 +153,39 @@ Search: `ls /sys/class/devfreq/`
 
 ---
 
-## NPU (eIQ Neutron)
+## NPU #1 — eIQ Neutron-S (on-SoC)
+
+> ⚠️ **There is no `ethosu` and no `libvx` on this SoC.** `ethosu` is Arm Ethos-U65 (**i.MX93**);
+> `libvx_delegate.so` is VeriSilicon VX (**i.MX8M Plus**). An earlier version of this file listed
+> both as "alternative" i.MX95 paths. They are not alternatives — they are different chips.
+> See `references/imx95-ground-truth.md` §1.1.
 
 ```
-/sys/bus/platform/drivers/neutron/      # NPU platform driver (if loaded)
-/sys/bus/platform/drivers/ethosu/       # Alternative driver name
-/sys/bus/platform/drivers/imx-neutron/  # Another variant
+/sys/bus/platform/drivers/neutron/           # Neutron platform driver
+/sys/bus/platform/drivers/imx-neutron/       # alternative driver name
 
-/dev/neutron0                           # NPU device node (if present)
-/dev/ethosu0                            # Alternative device node
+/dev/neutron0                                # Neutron device node
+                                             #  ⚠️ presence != availability
 
-# eIQ delegate libraries (search these paths):
-/usr/lib/libethosu_delegate.so
-/usr/lib/libvx_delegate.so
-/usr/local/lib/libethosu_delegate.so
-/usr/lib/libNNDelegate.so
-/usr/lib/aarch64-linux-gnu/libethosu_delegate.so
+# TFLite delegate stack — TWO files exist on this board [MEASURED]
+/usr/lib/libneutron_delegate.so              # 133128 B — confirmed delegating
+/usr/lib/liblitert_neutron_delegate.so       # 329736 B — present, UNTESTED
+
+# ONNX Runtime Neutron EP — a SEPARATE stack, separate placement signal
+/usr/lib/libonnxruntime.so.1.24.3
+/usr/lib/libNeutronDriver.so
 ```
+
+## NPU #2 — Kinara ARA240 (M.2)
+
+```
+PCI 0000:01:00.0  [1e58:0002]  driver uiodma    # lspci -nn | grep 1e58
+/usr/share/rt-sdk-ara240_2.1.1/nnapp/nnapp      # runtime CLI
+/var/run/proxy.sock                             # proxy_ara240 daemon socket
+```
+
+> 🔴 **ARA240 occupancy is host-UNDETECTABLE — measured, not assumed.** The `uiodma` use-count
+> reads 0 during a fully busy 500-inference run. Never report this device as free.
 
 ---
 

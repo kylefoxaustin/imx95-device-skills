@@ -36,7 +36,15 @@ Examples:
 EOF
 }
 
-DEVICE="/dev/video0"
+# ⚠️ NO DEFAULT DEVICE, DELIBERATELY. This used to default to /dev/video0.
+# MEASURED on the fleet FRDM-IMX95-PRO 2026-10-09: /dev/video0 is the
+# **C&M Wave6 VPU DECODER**, and video1/2/3 are the Wave6 encoder and the
+# mxc-jpeg dec/enc. ALL FOUR /dev/video* nodes on this board are CODECS. There
+# is no camera. Defaulting to video0 pointed a capture test at a video decoder
+# — the convenient identifier (/dev/video* exists) standing in for the
+# authoritative one (what the device actually IS). See ground-truth §0
+# reestablish-the-referent-law, tier ②.
+DEVICE=""
 NUM_FRAMES=30
 PIXEL_FORMAT=""
 SAVE_DIR=""
@@ -64,6 +72,15 @@ require_tool v4l2-ctl "Install with: apt-get install v4l-utils  OR  opkg install
 # ---------------------------------------------------------------------------
 # Validate device
 # ---------------------------------------------------------------------------
+if [ -z "${DEVICE}" ]; then
+    log_error "No device given. This script has NO DEFAULT, on purpose."
+    log_error "On the fleet board every /dev/video* node is a CODEC, not a camera:"
+    log_error "  video0 C&M Wave6 VPU decoder · video1 Wave6 encoder"
+    log_error "  video2 mxc-jpeg-dec        · video3 mxc-jpeg-enc"
+    log_error "Run detect_cameras.sh first; pass a node it classified as CAPTURE."
+    exit 1
+fi
+
 if [ ! -e "${DEVICE}" ]; then
     log_error "Device ${DEVICE} not found."
     log_error "Available video devices:"

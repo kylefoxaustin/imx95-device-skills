@@ -55,7 +55,7 @@ No arguments required. Output is always one screen (~20 lines).
 1. Run `scripts/print_info.sh` via SSH.
 2. Parse the output — each line is `KEY : VALUE` format.
 3. Report the values to the user in a natural sentence, e.g.:
-   *"This is an NXP i.MX95 19x19 EVK board running kernel 6.6.23, up for 2h 14m.
+   *"This is an NXP FRDM-IMX95-PRO (compatible fsl,frdm-imx95-pro fsl,imx95) running Yocto Linux 6.18, up for 2h 14m.
    IP address is 192.168.1.42. eIQ 2.4.0 is installed. Root filesystem is read-write
    with 12 GB free."*
 
@@ -64,10 +64,10 @@ No arguments required. Output is always one screen (~20 lines).
 ## Output Format
 
 ```
-Board     : NXP i.MX95 19x19 EVK board
+Board     : NXP FRDM-IMX95-PRO
 SoC       : i.MX95 rev1.1
-Compatible: fsl,imx95-19x19-evk
-Kernel    : 6.6.23-lts-next+gabcdef1234
+Compatible: fsl,frdm-imx95-pro fsl,imx95
+Kernel    : 6.18.0 (this board — Yocto; NOT 6.6.x)
 Uptime    : 2h 14m
 Hostname  : imx95-evk
 IP        : 192.168.1.42 (eth0)
