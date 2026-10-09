@@ -18,6 +18,8 @@ source "${REPO_ROOT}/lib/common.sh"
 source "${REPO_ROOT}/lib/sysfs.sh"
 # shellcheck source=lib/board_detect.sh
 source "${REPO_ROOT}/lib/board_detect.sh"
+# shellcheck source=lib/neutron.sh
+source "${REPO_ROOT}/lib/neutron.sh"   # neutron_find_runner — the ONLY runner discovery
 
 usage() {
     echo "Usage: $(basename "$0")"
@@ -59,45 +61,38 @@ if command -v ip &>/dev/null; then
     fi
 fi
 
-# eIQ version detection
+# eIQ / TFLite runner detection.
+#
+# ⚠️ THIS USED TO SEARCH FIVE INVENTED PATHS: /usr/bin/eiq-benchmark,
+# /usr/local/bin/eiq-benchmark, /opt/eiq/bin/eiq-benchmark, plus version files at
+# /usr/share/eiq/version and /etc/eiq-version. NONE of those exist on this board.
+# The measured location is /usr/bin/tensorflow-lite-2.19.0/examples/benchmark_model
+# — a VERSIONED directory that is not on PATH, so `command -v benchmark_model`
+# misses it too. Net effect: this skill reported eIQ "not detected" on a board
+# where the runner is present and working. A FALSE NEGATIVE ON A REAL
+# CAPABILITY — the delegate bug's mirror image, and just as misleading, because
+# an agent told "no runner" will not try to benchmark at all.
+#
+# Fixed by delegating to lib/neutron.sh:neutron_find_runner, which is the single
+# source of runner discovery for this repo. If the path ever changes it changes
+# in ONE place. See references/imx95-ground-truth.md §5.
 EIQ_STR="not detected"
-for candidate in \
-    /usr/bin/eiq-benchmark \
-    /usr/local/bin/eiq-benchmark \
-    /opt/eiq/bin/eiq-benchmark \
-    /usr/bin/benchmark_model \
-    /usr/local/bin/benchmark_model; do
-    if [ -x "${candidate}" ]; then
-        # Try to extract version from the binary or adjacent version file
-        EIQ_VER=""
-        # Check for a version file next to the binary
-        BIN_DIR=$(dirname "${candidate}")
-        for vfile in "${BIN_DIR}/../version" "${BIN_DIR}/../VERSION" \
-                     "/usr/share/eiq/version" "/etc/eiq-version"; do
-            if [ -f "${vfile}" ]; then
-                EIQ_VER=$(cat "${vfile}" 2>/dev/null | head -1 | tr -d '[:space:]')
-                break
-            fi
-        done
-        # Try --version flag
-        if [ -z "${EIQ_VER}" ]; then
-            EIQ_VER=$("${candidate}" --version 2>/dev/null | head -1 | grep -oP '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true)
-        fi
-        if [ -n "${EIQ_VER}" ]; then
-            EIQ_STR="${EIQ_VER} (${candidate})"
-        else
-            EIQ_STR="installed (${candidate})"
-        fi
-        break
+RUNNER="$(neutron_find_runner 2>/dev/null || true)"
+if [ -n "${RUNNER}" ]; then
+    EIQ_VER="$("${RUNNER}" --version 2>/dev/null | head -1 \
+               | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true)"
+    if [ -n "${EIQ_VER}" ]; then
+        EIQ_STR="${EIQ_VER} (${RUNNER})"
+    else
+        EIQ_STR="present, version not reported (${RUNNER})"
     fi
-done
+fi
 
-# Also check for Python tflite_runtime
-if [ "${EIQ_STR}" = "not detected" ]; then
-    if python3 -c "import tflite_runtime; print(tflite_runtime.__version__)" &>/dev/null 2>&1; then
-        TFL_VER=$(python3 -c "import tflite_runtime; print(tflite_runtime.__version__)" 2>/dev/null || echo "unknown")
-        EIQ_STR="tflite_runtime ${TFL_VER} (python3)"
-    fi
+# Python tflite_runtime is a SEPARATE stack, not a fallback for the above —
+# report it independently rather than only when the runner is missing.
+TFLRT_STR="not installed"
+if TFL_VER="$(python3 -c 'import tflite_runtime; print(tflite_runtime.__version__)' 2>/dev/null)"; then
+    [ -n "${TFL_VER}" ] && TFLRT_STR="${TFL_VER}"
 fi
 
 # Root filesystem read/write state
@@ -116,7 +111,12 @@ if command -v df &>/dev/null; then
     DISK_USED=$(echo "${DISK_INFO}" | awk '{print $3}')
     DISK_FREE=$(echo "${DISK_INFO}" | awk '{print $4}')
     DISK_PCT=$(echo "${DISK_INFO}"  | awk '{print $5}')
-    DISK_STR="${DISK_FREE} free of ${DISK_SIZE} (${DISK_PCT} used)"
+    # Name the DEVICE, not just the mount point. On this board `/` is
+    # /dev/mmcblk1p2 — the SD card — while the eMMC is a different device
+    # entirely. A free-space figure attached to a bare "/" invites the reader to
+    # assume eMMC. See ground-truth §0 (reestablish-the-referent-law, tier 2).
+    ROOT_DEV="$(findmnt -no SOURCE / 2>/dev/null || echo 'unresolved')"
+    DISK_STR="${DISK_FREE} free of ${DISK_SIZE} (${DISK_PCT} used) on ${ROOT_DEV}"
 fi
 
 # ---------------------------------------------------------------------------
@@ -127,8 +127,9 @@ printf "%-10s: %s rev%s\n" "SoC"  "${SOC_ID}" "${SOC_REV}"
 printf "%-10s: %s\n" "Compatible" "${COMPAT}"
 printf "%-10s: %s\n" "Kernel"     "${KERNEL}"
 printf "%-10s: %s\n" "Uptime"     "${UPTIME_STR}"
-printf "%-10s: %s\n" "Hostname"   "${HOSTNAME_VAL}"
+printf "%-10s: %s%s\n" "Hostname"   "${HOSTNAME_VAL}" "   ⚠️ NOT a board identity — two fleet boards answer to 'imx95evk'; identify by Board/Compatible above"
 printf "%-10s: %s\n" "IP"         "${IP_STR}"
 printf "%-10s: %s\n" "eIQ"        "${EIQ_STR}"
+printf "%-10s: %s\n" "tflite-py"  "${TFLRT_STR}"
 printf "%-10s: %s\n" "RootFS"     "${ROOTFS_STATE}"
 printf "%-10s: %s\n" "Disk /"     "${DISK_STR}"

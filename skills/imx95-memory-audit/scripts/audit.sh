@@ -112,7 +112,40 @@ if should_run "MEMINFO"; then
     elif [ "${CMA_USED_PCT}" -gt 80 ]; then
         echo "STATUS: CMA PRESSURE — CMA is ${CMA_USED_PCT}% used (${CMA_USED_MB}/${CT_MB} MB)."
     else
-        echo "STATUS: OK — ${MA_MB} MB available, CMA ${CMA_USED_PCT}% used."
+        echo "STATUS: ${MA_MB} MB available. ⚠️ CMA health NOT ASSESSED — see below."
+    fi
+
+    # ───────────────────────────────────────────────────────────────────────
+    # 🔴 WHY THIS NO LONGER SAYS "CMA n% used" AS IF THAT MEANT ANYTHING.
+    #
+    # On the neutron DTB, /proc/meminfo CmaFree is the SUM OF TWO POOLS:
+    #     linux,cma         960 MiB   <- the pool the TFLite delegate draws from
+    #     neutron_memory   4096 MiB   <- the ONNX/LLM EP's dedicated pool
+    #     CmaTotal        ~5056 MiB
+    # This kernel has no CONFIG_CMA_DEBUGFS, so THERE IS NO PER-POOL ACCOUNTING.
+    #
+    # The arithmetic that makes the old threshold useless: if the ENTIRE 960 MiB
+    # linux,cma pool is exhausted — the exact condition that makes the Neutron
+    # delegate fail with "Neutron hardware init failed!!!" and silently run the
+    # whole graph on the A55s — the aggregate reads
+    #     960 / 5056 = 19.0% used
+    # which is BELOW the 80% CMA-PRESSURE threshold. So this script printed
+    # "STATUS: OK" at the precise moment the delegate could not allocate.
+    #
+    # ⇒ An aggregate that cannot distinguish the pool that matters must not be
+    #   reported as a health verdict. It is printed as a raw number with its
+    #   composition stated, and the verdict is withheld. Refuse, do not degrade.
+    echo ""
+    echo "CMA: ${CF_MB} MB free of ${CT_MB} MB total — ⚠️ AGGREGATE OF TWO POOLS, NOT A HEALTH SIGNAL"
+    if [ "${CT_MB}" -gt 4000 ]; then
+        echo "  CmaTotal > 4 GiB ⇒ the neutron DTB is booted, so this figure sums"
+        echo "  linux,cma (~960 MiB, used by the TFLite delegate) + neutron_memory (~4096 MiB)."
+        echo "  No CONFIG_CMA_DEBUGFS on this kernel ⇒ no per-pool accounting exists."
+        echo "  ⇒ A healthy-looking total does NOT prove the delegate's 960 MiB pool is free."
+        echo "  ⇒ Full exhaustion of that pool reads as only ~19% of the aggregate, which is"
+        echo "     why no percentage threshold here can detect the CMA trap."
+        echo "  To prove an offload actually happened, watch CmaFree DURING a run and gate on"
+        echo "  the placement line — see lib/neutron.sh and ground-truth §2.2."
     fi
 
     if [ "${SUMMARY_ONLY}" = "1" ]; then exit 0; fi
