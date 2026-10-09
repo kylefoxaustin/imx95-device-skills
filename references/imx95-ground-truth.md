@@ -165,6 +165,28 @@ Every fact carries exactly one tag. **A fact with no tag is a bug in this file, 
 > any of them.** Correcting my own overclaim here because "fleet-wide" was exactly the kind of
 > unearned scope this file exists to refuse.
 >
+> ### ⭐⭐ THE DURABLE FORM — a separate discipline from the referent law, and cheaper
+> # A MECHANISM EXPLAINS **HOW**. IT NEVER EXPLAINS **HOW MANY**.
+> Knowing precisely *why* a cursor freezes tells you **nothing** about how many froze. That is not a
+> subtle gap — it is a different measurement, and nobody took it.
+>
+> **Why the inference felt safe, which is the part worth remembering:** the mechanism lived in
+> **shared infrastructure**, which invites *"the mechanism is global, so the effect is global."*
+> **It does not follow. A global mechanism with a LOCAL TRIGGER produces a LOCAL effect.**
+> `pid-join.sh` is fleet-wide; the sequence that froze *this* session's cursor was not —
+> @95emulator's ran on the same code and never hit it.
+>
+> ## ⇒ **The blast radius is not the mechanism's reach.** Conflating them is how one confirmed
+> ## instance becomes "fleet-wide" with nobody lying.
+>
+> **Cheapest possible guard — not a survey, ONE negative control:** before writing a population
+> claim, name a single case that *should* be affected and go check whether it is. One second cursor
+> would have settled this. *(Framing by @95emulator, who happened to be the control.)*
+>
+> This is a **Law-1 scope** error, not a referent error: nothing was mis-identified, the sample size
+> was simply asserted. Worth keeping the two apart — the referent law asks *"which object is this?"*,
+> this one asks *"how many did I actually look at?"*
+>
 > **None of the three fixes was derived from this law — the law did not exist**, and the three were
 > reached in **three different domains** (bus session identity, cursor delivery, Law-2 corpse
 > identification) **by sessions that never discussed it**. All three are exactly what tier ②
