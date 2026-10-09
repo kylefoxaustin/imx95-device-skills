@@ -65,7 +65,9 @@ source, until reconciled).
 | ARA240 peak | ~40 TOPS | [SOURCED] |
 | Real-time cores | **Cortex-M7** (`imx-rproc`, attached/running) + **Cortex-M33** (System Manager) | [MEASURED] |
 | Storage speed | **298 MB/s read / 152 MB/s write** | [MEASURED] |
-| ⚠️ Storage size | ~~eMMC 29.6 GB~~ — **CONTRADICTED, do not use.** `/` alone measures **56 G** and `/run/media/root-mmcblk0p2` **11 G**: 67 G of mounted filesystem cannot sit on a 29.6 GB device. The vendor figure was never measured here. True capacity, and which device backs `/`, are open — see §5. | [UNVERIFIED] |
+| eMMC `mmcblk0` | **29.6 GB** (62160896 sectors) — the vendor figure, now confirmed on the board | [MEASURED 2026-10-08] |
+| microSD `mmcblk1` | **58 GB** (121634816 sectors) — **a second MMC device** | [MEASURED 2026-10-08] |
+| 🔴 **The board runs from the microSD, NOT the eMMC** | `/` is `/dev/mmcblk1p2` (57.7 G ext4). The eMMC holds a **second, non-live** rootfs at `mmcblk0p2`. See §5 — this changes every flashing, imaging and "which DTB is live" question. | [MEASURED 2026-10-08] |
 | OS | Yocto, **Linux 6.18**, **gcc 15.2 on-board** | [MEASURED] |
 | Hostname | `imx95evk` | [MEASURED] |
 | Process | TSMC 16 nm FinFET (16FFC-class) | [SOURCED] |
@@ -428,11 +430,13 @@ the same prompt even at temperature 0**, which breaks prompt caching, golden-out
 | fact | value | tag |
 |---|---|---|
 | Access | `ssh imx95` (alias on skippy, key auth, user **root, no password**) | [MEASURED] |
-| Rootfs `/` **total** | **56 G**, device `/dev/root` — three readings, two independent sessions, agreeing | [MEASURED 2026-10-08] |
-| Rootfs `/` **free** | **8.7 G free, 84% used** — but see the volatility warning below; this number moves by *gigabytes per day* | [MEASURED 2026-10-08 22:02] |
-| Staging partition | `/run/media/root-mmcblk0p2` = `/dev/mmcblk0p2`, **11 G total, 9.1 G used, 555 M free, 95%** | [MEASURED 2026-10-08 16:49] |
-| Which one to stage on | `/` is currently the roomier by ~16× (8.7 G vs 555 M) — **the opposite of the August advice**. Still `df -h` both: the ordering has already flipped once. | [MEASURED 2026-10-08] |
-| Device backing `/` | **[UNKNOWN]** — `/dev/root` is a symlink nobody has resolved. It is *not* `mmcblk0p2`, and 56 G + 11 G of mounted filesystems cannot fit on the 29.6 GB eMMC in §1. Run `findmnt -no SOURCE /` and `lsblk`. | [UNKNOWN] |
+| 🔴 `/` lives on the **microSD** | `/` = **`/dev/mmcblk1p2`**, 57.7 G ext4 on the **58 G `mmcblk1`**. The board boots and runs from the card. `df` shows it as `/dev/root`, which is a kernel-supplied name, not a symlink — `readlink -f /dev/root` returns *itself*. **`findmnt -no SOURCE /` is the only way to get the real device.** | [MEASURED 2026-10-08 22:20] |
+| `/` free | **8.7 G free, 84% used** — volatile; see the warning below | [MEASURED 2026-10-08 22:20] |
+| Staging partition | `/run/media/root-mmcblk0p2` = `/dev/mmcblk0p2`, **11 G total, 555 M free, 95%** — a partition of the **eMMC**, i.e. a *different physical device* from `/` | [MEASURED 2026-10-08] |
+| 🔴 The eMMC holds a **second, non-live rootfs** | `mmcblk0p2` (10.6 G ext4) is an ext4 root that is **not** the running one. `mmcblk0p1` and `mmcblk1p1` are **two 256 M vfat boot partitions**, both mounted. This is almost certainly why the `.ORIG` DTB backups were reported "in two places". | [MEASURED 2026-10-08] |
+| Which one to stage on | `/` (microSD) is the roomier by ~16× — 8.7 G vs 555 M. **The opposite of the August advice.** Still `df -h` both. | [MEASURED 2026-10-08] |
+| Full block layout | `mmcblk0` 29.6 G eMMC → p1 256 M vfat `/run/media/boot-mmcblk0p1`, p2 10.6 G ext4 `/run/media/root-mmcblk0p2` · `mmcblk0boot0/1` 31.5 M each · `mmcblk1` 58 G microSD → p1 256 M vfat `/run/media/boot-mmcblk1p1`, p2 57.7 G ext4 **`/`** | [MEASURED 2026-10-08] |
+| Uptime at probe | **29 days** — so an undated PID from "one boot" may still be live, but is still unsafe to rely on | [MEASURED 2026-10-08 22:20] |
 | TFLite C API | `/usr/lib/libtensorflow-lite.so.2.19.0` **exports the full C API** | [MEASURED] |
 | …but | **no headers ship**, and there is **no unversioned `.so` symlink** | [MEASURED] |
 | Link line | `-l:libtensorflow-lite.so.2.19.0 -lm -lpthread -ldl -lstdc++` | [MEASURED] |
@@ -461,29 +465,48 @@ the same prompt even at temperature 0**, which breaks prompt caching, golden-out
 > anyone announcing it. A free-space figure on this board has a shelf life of hours. `df -h` is a
 > precondition of staging, not a fact to look up here.
 >
-> ### 🔴 I withheld the 14 G figure on a bad check — logged because the check was the defect
+> ### 🔴 Three rounds on one number, and I was wrong twice. Both errors are worth keeping.
 >
-> On 2026-10-08 I marked `14 G free / 76% used` **[UNVERIFIED]** and refused to emit it, reasoning:
-> *76% used with 14 G free implies a ~58 G filesystem, but §1 gives the eMMC as 29.6 GB, so the pair
-> cannot both be right.* The arithmetic was correct. **The check was invalid**, for the reason this
-> document exists to prevent:
+> **Round 1 — I withheld a good measurement on an illegal check.** I marked `14 G free / 76% used`
+> **[UNVERIFIED]** and refused to emit it, reasoning: *76% used with 14 G free implies a ~58 G
+> filesystem, but §1 gives the eMMC as 29.6 GB, so the pair cannot both be right.* The arithmetic
+> was correct. The check was not:
 >
-> > **29.6 GB was tagged `size [SOURCED]`** in §1 at the time — a vendor figure nobody here had
-> > measured. (It is now [UNVERIFIED], because the board contradicts it outright.)
+> > **29.6 GB was tagged `size [SOURCED]`** — a vendor figure nobody here had measured.
 > > `14 G free / 76% used` was **MEASURED**, on the board, by `df`.
-> > **Law 1: a SOURCED number may never be compared against a MEASURED one.** I had it backwards —
-> > I let an unverified spec invalidate a real measurement, with the tag sitting in my own table.
->
-> The measured total is **56 G**, read three times by two sessions. 14 / 0.24 ≈ 58 ≈ 56 — the pair
-> was self-consistent with the real filesystem all along. The number that fails is **29.6 GB**:
-> `/` (56 G) plus `/run/media/root-mmcblk0p2` (11 G) is 67 G of mounted filesystem, which cannot sit
-> on a 29.6 GB device at all. See §1, where it is now [UNVERIFIED]. Caught by @95emulator.
+> > **Law 1: a SOURCED number may never be compared against a MEASURED one.** I had it backwards,
+> > letting an unverified spec invalidate a real measurement with the tag sitting in my own table.
 >
 > **The transferable lesson: a consistency check is itself an instrument, and it carries the
-> provenance of its reference value.** Checking a MEASURED number against a SOURCED one does not
-> validate anything — at best it detects that they differ, and the honest conclusion is then
-> *"the spec is unverified"*, never *"the measurement is unusable."* Before refusing to emit a
-> number because it failed a check, **check the tag on the thing you checked it against.**
+> provenance of its reference value.** Checking MEASURED against SOURCED establishes only that the
+> two differ; the honest conclusion is *"the spec is unverified"*, never *"the measurement is
+> unusable."* Before refusing to emit a number because it failed a check, **check the tag on the
+> thing you checked it against.** Caught by @95emulator.
+>
+> **Round 2 — so I inverted it, declared 29.6 GB "CONTRADICTED", and that was wrong too.** The
+> replacement reasoning was: `/` is 56 G, `root-mmcblk0p2` is 11 G, 67 G cannot sit on a 29.6 GB
+> device. Also correct arithmetic. Also an invalid check — because it rests on an assumption I never
+> stated and never tested: **that there is only one storage device.**
+>
+> **Round 3 — I reserved the board (hard) and ran `findmnt` + `lsblk`. There are TWO MMC devices.**
+>
+>     mmcblk0   29.6 G  eMMC      p1 256 M vfat · p2 10.6 G ext4  -> /run/media/root-mmcblk0p2
+>     mmcblk1     58 G  microSD   p1 256 M vfat · p2 57.7 G ext4  -> /
+>
+> **The 29.6 GB eMMC spec was right the whole time.** It simply describes a device that `/` does not
+> live on. 67 G across two devices is unremarkable. And the finding that fell out is far more
+> important than the free-space figure that started it: **this board boots and runs from the microSD
+> card, and the eMMC carries a second, non-live rootfs.**
+>
+> **What actually went wrong both times — and it is one failure, not two.** Both checks compared two
+> numbers that were each individually correct, and in both cases the *relation* between them was the
+> fabrication. Round 1 related a spec to a measurement across provenance tiers. Round 2 related two
+> measurements under a silent single-device premise. A check that produces a contradiction has three
+> possible culprits — operand A, operand B, and **the premise joining them** — and I blamed an
+> operand twice without once auditing the join. `/dev/root` made it easy: it is a kernel-supplied
+> name, not a symlink, so `readlink -f` returns itself and the device *looks* unknowable. **Fifteen
+> seconds of `lsblk` beat two rounds of arithmetic.** When a consistency check fails, the cheapest
+> move is almost always to go measure the thing, not to reason about which number to distrust.
 >
 > **Install-path advice, now settled by the measurements above.** v1's unconditional
 > `git clone … /opt/imx95-device-skills` was wrong when `/` was full; August's "use

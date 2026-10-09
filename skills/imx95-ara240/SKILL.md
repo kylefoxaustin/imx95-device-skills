@@ -144,8 +144,9 @@ Two gotchas that will each cost you a session [MEASURED]:
 - **`.dvm` models are compiled host-side.** There is no on-board compiler. You need a Kinara
   account for the host toolchain.
 - **`df -h` before staging a `.dvm`.** `/run/media/root-mmcblk0p2` holds 555 M of 11 G; `/` holds
-  8.7 G of 56 G, so the default outdir is the *tighter* filesystem. `/` also shed 10 GB in the two
-  days before this was written — do not plan against a figure from a doc (ground-truth §5).
+  8.7 G of 56 G, so the default outdir is the *tighter* filesystem. They are also different physical
+  devices — the default is the **eMMC**, `/` is the **microSD** the board boots from. `/` shed 10 GB
+  in the two days before this was written; do not plan against a figure from a doc (ground-truth §5).
 - **This is an INSTANCE fact, not an "i.MX95" fact.** The ARA240 being seated and enumerated is
   true of *the board on the desk*. A same-model swap silently invalidates it, and there is no
   fingerprint yet. Re-verify after any hardware change.
