@@ -133,8 +133,9 @@ bash skills/imx95-npu-benchmark/scripts/bench_npu.sh \
      --model /run/media/root-mmcblk0p2/model_neutron.tflite --runs 50
 ```
 
-⚠️ **Stage models on `/run/media/root-mmcblk0p2`, never `/`** — the rootfs is 100% full
-(~300 MB free). See ground-truth §5.
+⚠️ **`df -h` before staging a model anywhere.** `/run/media/root-mmcblk0p2` is the default, but it
+had only **555 MB free** (2026-08-12), and `/`'s free space has three conflicting measurements — so
+"never `/`" is no longer safe as standing advice either. See ground-truth §5.
 
 ---
 

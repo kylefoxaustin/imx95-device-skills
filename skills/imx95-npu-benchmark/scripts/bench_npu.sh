@@ -63,8 +63,9 @@ Options:
   --min-margin C   Refuse if any thermal zone is within this many degrees of ITS
                    OWN trip point (default 15). Not an absolute temperature —
                    this board has PMIC zones that report a flat 105 C placeholder.
-  --outdir DIR     Where to write the run log
-                   (default /run/media/root-mmcblk0p2/... — NOT /, which is 100% full)
+  --outdir DIR     Where to write the run log (default /run/media/root-mmcblk0p2/...).
+                   `df -h` first — neither partition has guaranteed room, and the
+                   recorded free-space figures conflict (ground-truth §5).
 EOF
 }
 
@@ -164,7 +165,18 @@ else
     log_info "  none of interest"
 fi
 
-mkdir -p "$OUTDIR" 2>/dev/null || die "Cannot create ${OUTDIR} (rootfs is 100% full — use the eMMC data partition)"
+# Do NOT name a cause we have not established. The previous version blamed a 100%-full rootfs
+# unconditionally, so a permissions error or a missing parent produced a confident wrong diagnosis
+# — and the free-space claim it rested on is itself in conflict (ground-truth §5). Print the real
+# error and the real `df`, then let the reader decide.
+if ! MKDIR_ERR="$(mkdir -p "$OUTDIR" 2>&1)"; then
+    log_error "Cannot create ${OUTDIR}"
+    log_error "  mkdir: ${MKDIR_ERR:-(no message)}"
+    log_error "  df for the nearest existing parent:"
+    _P="$OUTDIR"; while [ ! -d "$_P" ] && [ "$_P" != "/" ]; do _P="$(dirname "$_P")"; done
+    df -h "$_P" 2>&1 | awk 'NR<=2 {print "    " $0}'
+    die "Refusing to run: no writable output directory."
+fi
 RUNLOG="${OUTDIR}/neutron-run-$(timestamp).log"
 
 # ── Run ──────────────────────────────────────────────────────────────────────

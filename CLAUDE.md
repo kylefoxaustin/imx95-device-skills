@@ -57,8 +57,8 @@ Full table in `references/imx95-ground-truth.md` §1. The essentials:
 | NPU #1 | **eIQ Neutron-S**, `/dev/neutron0`, ~2–3 INT8 TOPS | dev [MEASURED] / TOPS [SOURCED] |
 | NPU #2 | **Kinara ARA240** on M.2 — runs CNNs *and* a 7B LLM | [MEASURED] |
 | OS | Yocto, **Linux 6.18**, gcc 15.2 on-board | [MEASURED] |
-| ⚠️ Rootfs | **`/` is 100% FULL (310 MB free)** | [MEASURED 2026-08-12] |
-| ⚠️ Staging partition | `/run/media/root-mmcblk0p2` — **95% full, 555 MB free** (was ~4 G) | [MEASURED 2026-08-12] |
+| ⛔ Rootfs free space | **No figure given.** Three measurements of `/` disagree by up to 14 GB and one is internally impossible — ground-truth §5. **Run `df -h /`.** | [UNVERIFIED] |
+| ⚠️ Staging partition | `/run/media/root-mmcblk0p2` — **555 MB free (95%)**. Small, and no longer automatically the right target. | [MEASURED 2026-08-12] |
 
 > **This is a DUAL-NPU board.** v1 did not know the second one existed — zero references to
 > `ara240`, `kinara` or `nnapp`. Roughly half the board's AI capability, and the entire generative-AI
@@ -77,8 +77,10 @@ board-side absolute paths. Never assume you are running locally unless `hostname
 
 ⚠️ **Dev images ship root with no password.** Set one before the board leaves the bench.
 
-⚠️ **Install to `/run/media/root-mmcblk0p2`, not `/opt`.** v1 said
-`git clone … /opt/imx95-device-skills`; on a rootfs with 300 MB free that is a coin flip.
+⚠️ **`df -h` before you choose an install path.** v1 said `git clone … /opt/imx95-device-skills`
+unconditionally; the August correction said "use `/run/media/root-mmcblk0p2` instead". **Both are
+unsafe as standing advice** — that partition had only 555 MB, and `/`'s free space has three
+conflicting measurements (ground-truth §5). Measure, then choose.
 
 ⚠️ **The board is a sealed Yocto image with no working package feed.** Do not plan around
 `opkg install`. Build on the host and `scp`. (`/usr/lib/libtensorflow-lite.so.2.19.0` exports the

@@ -427,15 +427,38 @@ the same prompt even at temperature 0**, which breaks prompt caching, golden-out
 | fact | value | tag |
 |---|---|---|
 | Access | `ssh imx95` (alias on skippy, key auth, user **root, no password**) | [MEASURED] |
-| ⚠️ Rootfs | **`/` IS 100% FULL (~300 MB free)** | [MEASURED] |
-| Stage large files on | `/run/media/root-mmcblk0p2` — ⚠️ **now 95% full, 555 MB free** (was ~4 G) | [MEASURED 2026-08-12] |
+| Rootfs `/` free space | ⛔ **DO NOT QUOTE A FIGURE — three measurements disagree.** `df -h /` on the board and use what you see. See the conflict note below. | [UNVERIFIED] |
+| Staging partition | `/run/media/root-mmcblk0p2` — **555 MB free, 95% used**. It was once "~4 G free"; that advice is dead. | [MEASURED 2026-08-12] |
+| Which one to stage on | ⛔ **No standing answer.** Which partition has room has already inverted once. `df -h /` **and** `df -h /run/media/root-mmcblk0p2` before every transfer. | — |
 | TFLite C API | `/usr/lib/libtensorflow-lite.so.2.19.0` **exports the full C API** | [MEASURED] |
 | …but | **no headers ship**, and there is **no unversioned `.so` symlink** | [MEASURED] |
 | Link line | `-l:libtensorflow-lite.so.2.19.0 -lm -lpthread -ldl -lstdc++` | [MEASURED] |
 | Package feeds | sealed Yocto — assume **no working feed**; build on host, `scp` over | [MEASURED] |
 
-> ⚠️ **The rootfs fact breaks the original install instructions.** `git clone … /opt/imx95-device-skills`
-> on a filesystem with 300 MB free is a coin flip. Install to `/run/media/root-mmcblk0p2` instead.
+> ### ⛔ The rootfs free-space conflict — unresolved, and the figure is withheld
+>
+> Three measurements of `/` on the same board, none retracted:
+>
+> | date | claim | source |
+> |---|---|---|
+> | 2026-08-12 | **100% full, 310 MB free** | this repo (`df -h`, on-board) |
+> | 2026-10-06 | **14 GB free, "76% used"** | this repo |
+> | 2026-10-06 | **19 GB free** | @95emulator, via the `imx95-frdm` registry card |
+>
+> **The middle row fails an internal check and is therefore not usable as MEASURED.** 76 % used with
+> 14 GB free implies a filesystem of ~58 GB; §1 gives the whole eMMC as 29.6 GB. One of the pair was
+> misread, and I cannot tell which without the raw `df` line. The third row disagrees with it by 5 GB
+> on the same day.
+>
+> So this document emits **no** rootfs free-space figure. `df -h` before you act. The exact `df -h`
+> output has been requested from @95emulator; the board was held by another session when this was
+> written, so re-measuring was not available.
+>
+> **The install instruction that depended on this is withdrawn too.** v1 said
+> `git clone … /opt/imx95-device-skills`, and the August correction said "install to
+> `/run/media/root-mmcblk0p2` instead" — but that partition is the **555 MB** one, so the August
+> correction now points at the *tighter* of the two. Size the clone against a live `df`, not against
+> either remembered answer.
 
 ---
 
@@ -595,7 +618,12 @@ file from a transcription of other people's work into something this repo has ve
 `libonnxruntime.so.1.24.3`) · `benchmark_model` at the documented path · `neutron-converter`
 **absent on board** · ARA240 enumerated at `0000:01:00.0 [1e58:0002] rev 02` with
 `uiodma` use-count **0 while idle** · `proxy_ara240` running (pid resolved via `/proc/PID/exe`) ·
-`/var/run/proxy.sock` present · rootfs **100% full, 310 MB free**.
+`/var/run/proxy.sock` present · rootfs **100% full / 310 MB free**.
+
+> The rootfs figure above is the **census value for this 2026-08-12 run** and is deliberately *not*
+> updated: a census records the environment as it was during the measurement, so retro-editing it
+> would destroy the thing it exists to prove. For the board's *current* free space — which is
+> disputed and withheld — see §5.
 
 **`CmaTotal` 5177344 kB = 4.94 GiB** — the neutron DTB is booted, exactly as §2.3 says.
 **`MemTotal` 16097084 kB** — consistent with 16 GB LPDDR [SOURCED].
@@ -630,8 +658,9 @@ Note **"NeutronDelegate delegate:"** — the word *delegate* twice. `@imx95-isp`
 
 ### 🔴 Two card facts this run corrected
 
-1. **`/run/media/root-mmcblk0p2` is 95% full — 555 MB free, not "~4 G".** It is still the right
-   place to stage relative to a 100%-full rootfs, but the headroom is gone. **Check `df` first.**
+1. **`/run/media/root-mmcblk0p2` is 95% full — 555 MB free, not "~4 G".** The *reason* originally
+   given for preferring it ("the rootfs is 100% full") no longer holds and is withdrawn — see the
+   conflict note in §5. 555 MB is a hard fact; "stage here" is not. **Check `df` first.**
 2. **The PMIC thermal zones report a flat 105 °C placeholder** — see §2.6 below.
 
 ### ⚠️ One number that does NOT match the fleet, stated rather than reconciled

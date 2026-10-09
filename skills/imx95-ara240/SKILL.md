@@ -143,7 +143,9 @@ Two gotchas that will each cost you a session [MEASURED]:
 
 - **`.dvm` models are compiled host-side.** There is no on-board compiler. You need a Kinara
   account for the host toolchain.
-- **The rootfs is 100% full** (~300 MB). Stage models on `/run/media/root-mmcblk0p2`.
+- **Check free space before staging a `.dvm`; do not assume either partition has room.**
+  `/run/media/root-mmcblk0p2` had 555 MB free on 2026-08-12 and `/`'s figure is in dispute
+  (ground-truth §5). `df -h` both.
 - **This is an INSTANCE fact, not an "i.MX95" fact.** The ARA240 being seated and enumerated is
   true of *the board on the desk*. A same-model swap silently invalidates it, and there is no
   fingerprint yet. Re-verify after any hardware change.
