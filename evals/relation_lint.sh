@@ -82,7 +82,9 @@
 #   bus.sh keying session identity on the shell's cwd  -> 46 ghost messages
 #     posted under fabricated identities across three log files
 #   pid-join.sh matching `comm == "claude"` against a VERSIONED binary
-#     -> read cursors frozen fleet-wide for weeks
+#     -> read cursors frozen for weeks on an UNKNOWN number of sessions
+#        (mine: 8 weeks. NOT fleet-wide — 95emulator is a negative control,
+#        cursor advancing normally throughout. Do not generalise from one.)
 # A reader could reasonably conclude from §0 that this law is mechanically
 # enforced in this repo. It is enforced in the DOCUMENTATION, and nowhere in the
 # code paths where the law has actually bitten hardest. A real tier-② tool would

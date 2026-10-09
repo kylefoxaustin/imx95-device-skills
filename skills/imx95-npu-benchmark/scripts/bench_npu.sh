@@ -139,8 +139,16 @@ fi
 log_section "Census — the environment IS part of the measurement"
 LOAD="$(cut -d' ' -f1-3 /proc/loadavg 2>/dev/null || echo '?')"
 log_info "loadavg: ${LOAD}"
-# Instantaneous snapshot, binary resolved via /proc/PID/exe (never `comm` — it
-# truncates at 15 bytes and will hand you a different program's name).
+# Instantaneous snapshot, binary resolved via /proc/PID/exe. NEVER `comm`, and
+# note it is wrong in TWO unrelated ways, so a fix for one does not fix the other:
+#   truncation  `comm` is capped at 15 bytes -> a longer name is silently cut, so
+#               a match on the full name never fires
+#   versioning  a process that execs a versioned binary reports the VERSION as
+#               its comm (Claude Code reads "2.1.237", not "claude")
+# Comparing 15-byte prefixes still breaks on the versioned name; special-casing
+# the version still breaks on a long name. Resolving /proc/PID/exe covers both,
+# which is what three fleet sessions independently arrived at in three unrelated
+# domains. See ground-truth §0, reestablish-the-referent-law tier ②.
 # NOT a CPU-time delta: this answers "who else is resident", not "who is burning
 # CPU". Say what it is; an overclaimed methodology is its own defect.
 # `awk NR<=20` rather than `head -20`: head exits early, the producing loop takes
