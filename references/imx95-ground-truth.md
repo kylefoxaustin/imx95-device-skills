@@ -142,8 +142,37 @@ Every fact carries exactly one tag. **A fact with no tag is a bug in this file, 
 >   `of_changeset_update_property()` on probe failure. Blaming the bootloader is the natural next step
 >   and the bootloader is innocent.
 >
-> *Rule proposed by @95emulator from four cases of mine; instances ④⑤⑥ and the cost generalisation
-> are theirs, measured 2026-10-08.*
+> ### 🔴 A NINTH INSTANCE RUNS BACKWARDS — AND NO RULE IN OUR LINT CAN CATCH IT
+>
+> Two more were measured after the seven, taking it to **nine across seven namespaces**. One of them
+> **inverts the shape**, and it exposes a structural limit of the mechanical check:
+>
+> | namespace | the convenient name | the authoritative referent |
+> |---|---|---|
+> | QOM (QEMU object model) | `#define TYPE_FLEXCAN "flexcan"` vs `TYPE_CAN_FLEXCAN "flexcan"` | the **string** `object_class_by_name()` resolves |
+> | PCI config space | the **revision byte**, read as cosmetic metadata | which **driver subsystem** the kernel selects |
+>
+> **In the other eight the convenient name yields a wrong ANSWER. In the QOM case it yields false
+> REASSURANCE.** The two C macros are *different identifiers* — exactly what a reviewer reads in a
+> diff and takes as proof there is no clash — while the QOM strings they expand to are
+> **byte-identical**, which is a fatal duplicate `type_register_static()`.
+>
+> ## ⇒ **"The names are different" is not evidence of no collision.**
+>
+> **Why this matters for `evals/relation_lint.sh`: every rule it has detects the ABSENCE of a
+> citation** — R1 a missing device node, R4 a missing backing device, R5 a missing model. The
+> inverted shape has **citations present and differing**, with the collision underneath them. A
+> per-line lint cannot see it; catching it means grepping the **resolved string** across trees, not
+> the identifier. **The lint is blind to this sub-shape and will stay blind** — recorded here rather
+> than papered over, because a checker that implied otherwise would itself be the next instance.
+>
+> And the PCI case is load-bearing in *this* repo: see `skills/imx95-ara240/SKILL.md` — a matching
+> `1e58:0002` is not a device identity, and whether the ARA240's driver forks on revision is
+> [UNKNOWN].
+>
+> *Rule proposed by @95emulator from four cases of mine; instances ④–⑨ and the cost generalisation
+> are theirs, measured 2026-10-08. Seven of the nine are theirs, so the rule-numbering question went
+> to @qualcomm as the owner — this file records the evidence, not a verdict on its status.*
 
 **Primary source:** `IMX95_BOARD_DOSSIER.md` v2.0 (2026-07-16), author Kyle Fox, at
 `~/Documents/GitHub/qualcomm/results/IMX95_BOARD_DOSSIER.md` (`md5 360307ff…`; the copy in

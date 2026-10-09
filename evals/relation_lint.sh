@@ -48,6 +48,27 @@
 # — 20+ findings, almost all false — which is the opposite failure and just as
 # useless, because a checker nobody believes is a checker nobody reads.
 #
+# ─── 🔴 A SUB-SHAPE THIS SCRIPT IS STRUCTURALLY BLIND TO ─────────────────────
+# EVERY rule here detects the ABSENCE of a citation: R1 a missing device node,
+# R4 a missing backing device, R5 a missing model. There is a measured instance
+# of the same family that INVERTS that — @95emulator's QOM case:
+#
+#     ours:      #define TYPE_FLEXCAN     "flexcan"
+#     upstream:  #define TYPE_CAN_FLEXCAN "flexcan"
+#
+# Different C identifiers, BYTE-IDENTICAL QOM strings. The convenient name (the
+# macro, which is what a reviewer reads in a diff) looks reassuringly DIFFERENT
+# while the authoritative name (the string object_class_by_name() resolves) is
+# the same — a fatal duplicate type_register_static().
+#
+#     "The names are different" is NOT evidence of no collision.
+#
+# The citations are PRESENT and DIFFERING, with the collision underneath them.
+# No per-line absence check can see that; catching it needs a grep for the
+# RESOLVED STRING across trees. This script is blind to it and will stay blind.
+# Stated here rather than papered over: a checker that implied otherwise would
+# itself be the next instance of the family.
+#
 # ─── SCOPE, STATED SO A CLEAN RUN CANNOT BE MISREAD ──────────────────────────
 # ALL rules check TABLE ROWS ONLY (lines beginning with `|`) — the fact rows a
 # script or skill actually reads a constant out of. Explanatory prose is NOT

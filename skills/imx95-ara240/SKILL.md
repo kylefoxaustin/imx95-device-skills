@@ -36,7 +36,7 @@ generative-AI story — was simply missing.
 
 | | |
 |---|---|
-| Bus | PCI `0000:01:00.0`, ID `1e58:0002`, driver `uiodma` [MEASURED] |
+| Bus | PCI `0000:01:00.0`, ID `1e58:0002` **rev 02**, driver `uiodma` [MEASURED] |
 | Runtime | `/usr/share/rt-sdk-ara240_2.1.1/` [MEASURED] |
 | CLI | `nnapp` · model format **`.dvm`** (compiled **host-side** with the Kinara SDK) |
 | Daemon | `proxy_ara240` (comm `kinara_main`) — owns the hardware, talks over `/var/run/proxy.sock` |
@@ -150,6 +150,17 @@ Two gotchas that will each cost you a session [MEASURED]:
 - **This is an INSTANCE fact, not an "i.MX95" fact.** The ARA240 being seated and enumerated is
   true of *the board on the desk*. A same-model swap silently invalidates it, and there is no
   fingerprint yet. Re-verify after any hardware change.
+- ⚠️ **`1e58:0002` ALONE IS NOT A DEVICE IDENTITY — record `rev` too.** A matching VID:PID is not
+  proof of a same-behaving card. The fleet has a **measured** case where a PCI revision byte selects
+  a whole driver subsystem: on NXP ENETC, `is_enetc_rev1()`/`is_enetc_rev4()` key off
+  `pdev->revision`, and rev1 routes the port's in-band PCS through a **Lynx PCS** while rev4 uses the
+  **DW xPCS** — a wrong revision makes the port enumerate fine and then fail `phylink validate`
+  somewhere that looks like a PHY fault *(@95emulator, `hw/net/fsl_enetc.c:830-837`)*. Nothing in the
+  word "revision" suggests it is a subsystem selector.
+  🔴 **Whether `uiodma`/`nnapp` fork on the ARA240's revision is [UNKNOWN]** — nobody has read the
+  driver for it. So: **this board is `rev 02`; do not assume a `rev != 02` card behaves the same, and
+  do not assume it differs either.** Any check that greps only `1e58:0002` (the one in
+  `agents/imx95-perf-investigator.md` included) matches a card it has not actually identified.
 - The ARA240 is a **dataflow NPU with no CNN op-cliff** — unlike the Neutron (CNN-only on the
   delegate path) and unlike the Hexagon (which cliffs on dilated conv).
 
