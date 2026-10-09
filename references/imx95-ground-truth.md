@@ -105,19 +105,44 @@ Every fact carries exactly one tag. **A fact with no tag is a bug in this file, 
 > explanatory "because" in prose) — the opposite failure, and equally useless, since a checker nobody
 > believes is a checker nobody reads. It was narrowed by *scope*, not by sensitivity.
 >
-> ### ⭐⭐⭐ THE GENERALISATION — SEVEN INSTANCES, AND IT IS A COST PROBLEM, NOT A CARE PROBLEM
+> ### ⭐⭐⭐ THE GENERALISATION — A COST PROBLEM, NOT A CARE PROBLEM, IN **THREE TIERS**
 >
 > Every defect above is one shape: **a name in one namespace standing in for a referent in
-> another.** Seven measured instances, four from this repo and three from @95emulator's:
+> another.** But the instances are **not of equal weight**, and the tiers are split by **who picks
+> the wrong referent — which is also what determines the fix.** *(Three-tier model by @95emulator,
+> correcting a two-tier split of mine that was wrong twice over — see the concession below.)*
 >
-> | the convenient name | the authoritative referent | what it costs to check |
-> |---|---|---|
-> | a mount point | the backing device | `findmnt -no SOURCE <path>` |
-> | `/dev/root` | the real partition | same — `readlink` returns *itself* |
-> | "the eMMC" | `mmcblk0` vs `mmcblk1` | `lsblk` |
-> | **`hostname`** | **`/proc/device-tree/model`** | one `cat` — **two fleet boards answer to `imx95evk`** |
-> | `/sys/firmware/fdt` (the handed-over blob) | the **live** device tree after driver mutation | a second read of `/sys/firmware/devicetree/base` |
-> | a filename | the file's lineage | a `diff` |
+> | tier | who picks wrong | instances | how it fails | the fix |
+> |---|---|---|---|---|
+> | **① VERNACULAR** | a human, loose with a word | "the eMMC", "microSD" | confusion | say what you mean — **illustration only, not evidence** |
+> | **② SHADOWED IDENTIFIER** | **you do, blamelessly** — you read it correctly and the referent is non-unique | `hostname`, `/dev/root`, a mount point, a filename, blob-vs-live-DT | 🔴 **a perfect measurement of the wrong thing** | disambiguate **at read time** |
+> | **③ MACHINE-RESOLVED** | **the machine does, and no reading helps** | QOM type string, PCI revision byte | fatal, or a silently forked code path | fix the code or the tooling — never the reader |
+>
+> **Only tier ② is invisible to both the reader and the tool**, and it is where the strongest
+> argument in the whole family lives: *a right answer about the wrong object.* `hostname` is not
+> vernacular — **both boards are genuinely configured with `hostname = imx95evk`**, so the read is
+> accurate and the identifier simply does not identify anything.
+>
+> ⚠️ **`evals/relation_lint.sh` owns tier ②. Nothing owns tier ③ yet** — that needs a cross-tree
+> grep for the *resolved* string plus a uniqueness assertion on `type_register_static()`, which is a
+> different tool.
+>
+> ### 🔴 My own narrowing was wrong, and in a way worth keeping
+> I proposed **two** tiers — "machine-resolved is strong, vernacular is illustration" — and it failed
+> twice: it put **blob-vs-live-DT in the machine-resolved tier** (the read is accurate; the paths are
+> shared, so it is ②), and it **omitted `hostname` from both bins** — the instance I had called the
+> worst of the family one message earlier. A binary split with no home for the strongest case
+> silently discards it. **If a write-up leads only on tier ③, it leads away from its own best
+> argument.**
+>
+> | the convenient name | the authoritative referent | what it costs to check | tier |
+> |---|---|---|---|
+> | a mount point | the backing device | `findmnt -no SOURCE <path>` | ② |
+> | `/dev/root` | the real partition | same — `readlink` returns *itself* | ② |
+> | "the eMMC" | `mmcblk0` vs `mmcblk1` | `lsblk` | ① |
+> | **`hostname`** | **`/proc/device-tree/model`** | one `cat` — **two fleet boards answer to `imx95evk`** | ② |
+> | `/sys/firmware/fdt` (the handed-over blob) | the **live** device tree after driver mutation | a second read of `/sys/firmware/devicetree/base` | ② |
+> | a filename | the file's lineage | a `diff` | ② |
 > | "microSD" | the card's form factor | **nothing — not electrically visible** ⇒ [UNKNOWN] |
 >
 > ## 🔴 IN EVERY ONE, THE NON-AUTHORITATIVE NAMESPACE IS THE CONVENIENT ONE.
@@ -132,7 +157,8 @@ Every fact carries exactly one tag. **A fact with no tag is a bug in this file, 
 > diligence did not: *the lint moves the cost from recall to CI.* It also predicts where the next one
 > lives — **anywhere a convenient identifier sits beside an authoritative one you must go and fetch.**
 >
-> Two of the seven are worth singling out because they defeat ordinary suspicion:
+> **Both tier-② exemplars below defeat ordinary suspicion**, which is why that tier is the
+> load-bearing one:
 > - **`hostname`**: the wrong board returns readings that are *real and self-consistent*. A board with
 >   nothing plugged in truthfully reports nothing plugged in. **There is no error to notice** — half a
 >   session went into diagnosing the wrong machine.
@@ -144,8 +170,11 @@ Every fact carries exactly one tag. **A fact with no tag is a bug in this file, 
 >
 > ### 🔴 A NINTH INSTANCE RUNS BACKWARDS — AND NO RULE IN OUR LINT CAN CATCH IT
 >
-> Two more were measured after the seven, taking it to **nine across seven namespaces**. One of them
-> **inverts the shape**, and it exposes a structural limit of the mechanical check:
+> Two more were measured after the seven. ⚠️ **They were briefly counted as "nine instances" — an
+> over-count @95emulator retracted**, because the two vernacular rows are tier ① and padding a real
+> pattern with ordinary imprecision weakens it. **Seven load-bearing instances (tiers ② and ③).**
+> Both of the new ones are **tier ③ — machine-resolved** — and one of them **inverts the shape**,
+> exposing a structural limit of the mechanical check:
 >
 > | namespace | the convenient name | the authoritative referent |
 > |---|---|---|
