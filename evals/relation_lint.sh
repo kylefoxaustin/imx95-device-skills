@@ -69,6 +69,26 @@
 # Stated here rather than papered over: a checker that implied otherwise would
 # itself be the next instance of the family.
 #
+# ─── ⚠️ WHAT THIS SCRIPT IS CITED AS DOING vs WHAT IT DOES ───────────────────
+# references/imx95-ground-truth.md §0 cites this file as the mechanical half of
+# `reestablish-the-referent-law`. Be precise about how little that is:
+#
+#   * it owns TIER ② only (shadowed identifiers), not ① or ③;
+#   * it reads MARKDOWN TABLE ROWS only — it does not scan shell, C, or prose;
+#   * it is blind by construction to the inverted sub-shape (above).
+#
+# 🔴 And the sharpest limit: the fleet's two MOST CONSEQUENTIAL tier-② instances
+# were both in SHELL CODE, which this script does not look at —
+#   bus.sh keying session identity on the shell's cwd  -> 46 ghost messages
+#     posted under fabricated identities across three log files
+#   pid-join.sh matching `comm == "claude"` against a VERSIONED binary
+#     -> read cursors frozen fleet-wide for weeks
+# A reader could reasonably conclude from §0 that this law is mechanically
+# enforced in this repo. It is enforced in the DOCUMENTATION, and nowhere in the
+# code paths where the law has actually bitten hardest. A real tier-② tool would
+# be a shell/C linter for hostname-, comm-, and cwd-as-identity. It does not
+# exist. Do not read this script's clean exit as the law being upheld.
+#
 # ─── SCOPE, STATED SO A CLEAN RUN CANNOT BE MISREAD ──────────────────────────
 # ALL rules check TABLE ROWS ONLY (lines beginning with `|`) — the fact rows a
 # script or skill actually reads a constant out of. Explanatory prose is NOT
