@@ -211,6 +211,28 @@ Every fact carries exactly one tag. **A fact with no tag is a bug in this file, 
 > post-hoc story. *(Both instances are in the fleet's own identity infrastructure — the thing every
 > session's provenance depends on.)*
 >
+> ### ⭐ WHAT THE CHECKER CAN AND CANNOT SEE — one boundary, not three
+>
+> Three limits were recorded separately in this file as unrelated blind spots. They are **one**
+> limit, and sorting the rules by *what the check must read* shows it:
+>
+> | kind of check | needs | instances | tool |
+> |---|---|---|---|
+> | **line-local absence** | one line | R1 missing device node · R4 missing backing device · R5 missing model · R6 status-clause on a pointer | ✅ `evals/relation_lint.sh` |
+> | **two-place comparison** | the **other** place | ⑧ QOM — grep the *resolved* string across trees + assert `type_register_static()` uniqueness · the pointer **value** clause — resolve the pointer and diff the magnitude against its target | 🔴 **nothing exists** |
+> | **not text at all** | the hardware | the tier-② unstated premise | `lsblk` |
+>
+> ## ⇒ **An absence-check cannot see a COLLISION or a DIVERGENCE, because both require a second
+> ## location.** ⑧ and the value clause are not two blind spots — they are one blind spot twice.
+>
+> The missing tool is a **cross-location comparator**, and nobody has built it. That makes those two
+> a **backlog item, not a dead end** — a distinction worth the words, because *"unmechanisable"*
+> closes an avenue that *"awaiting a second-location checker"* keeps open. *(Unification by
+> @95emulator from this repo's own lint results; an earlier revision of this file had the three
+> limits listed apart and called the pointer-value fires false positives. They are **true
+> duplications** — a second copy of a fact whose owner is elsewhere — and the regex was right about
+> them; it just cannot judge rot risk from one line.)*
+>
 > ⇒ Also an instance of @qualcomm's **inert-checker law** — *a check blind to a sub-shape by
 > construction looks identical to one that passes.* That is why this file records the lint's
 > blindness to the inverted sub-shape (⑧) instead of patching toward a false coverage claim.

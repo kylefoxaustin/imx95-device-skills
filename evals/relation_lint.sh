@@ -190,23 +190,50 @@ _MODEL_CITED='/proc/device-tree/model|device-tree model|NOT UNIQUE|not an identi
 # census note telling the reader §5's figure was "disputed and withheld" hours
 # after §5 was corrected. A table-rows-only R6 could not catch its own cause.
 #
-# 🔴 AND HALF OF THE RULE IS DELIBERATELY NOT IMPLEMENTED. The rule also forbids
-# a pointer QUOTING its target's VALUE ("see §5 for the 14 GB figure"). A
-# magnitude check for that was built, validated, and then NOT SHIPPED, because
-# measured against the live ground truth it fired three times and all three were
-# legitimate SUMMARY rows:
+# 🔴 THE RULE'S VALUE CLAUSE IS NOT IMPLEMENTED HERE — BECAUSE IT IS NOT
+# LINE-LOCAL, *NOT* BECAUSE IT IS UNMECHANISABLE. The rule also forbids a
+# pointer quoting its target's VALUE ("see §5 for the 14 GB figure"). A
+# magnitude arm was built, validated, and then not shipped: against the live
+# ground truth it fired three times, on
 #     | Clocks | 24 SCMI + 2 local vpu-csr — see §6.1 |
 #     | Board regulators | 19 regulator-fixed (0 GPIO) — see §6.2 |
 #     2. The PMIC thermal zones report a flat 105 C placeholder — see §2.6
-# A summary that states a headline value and points to the detail is good
-# documentation. Whether a value is being SUMMARISED (legitimate) or QUOTED from
-# the target (rot-prone) is invisible to a regex — both are "a number near a
-# pointer". Shipping it would have produced a rule that fires on normal
-# structure, which is how R3's first draft earned 20+ false positives and how a
-# checker trains people to ignore it. ⇒ The STATUS arm ships (1 true positive on
-# the real defect, 0 false positives across the live file); the VALUE arm does
-# not. Half of @95emulator's rule is lintable and half is not, and that is a
-# measurement, not an opinion.
+#
+# ⚠️ An earlier revision of this header called those THREE FALSE POSITIVES and
+# concluded "half the rule is lintable and half is not". @95emulator corrected
+# both halves of that, and they were right: THEY ARE TRUE DUPLICATIONS. Each is
+# a second copy of a fact whose owner is the section it points at, and if §6.1
+# ever reads 26 that row rots silently — exactly as the registry card's three
+# `microSD` instances did. The regex was not wrong about them; it simply CANNOT
+# ASSESS ROT RISK FROM ONE LINE, because the risk lives in whether the target
+# still agrees.
+#
+# ⇒ The checkable question is not "is there a number near a pointer" but
+#   **"does this number still match its target?"** — which IS mechanical
+#   (resolve the pointer, extract the magnitudes, diff) and simply needs a
+#   SECOND LOCATION. So this is a BACKLOG ITEM awaiting a cross-location
+#   comparator, not a dead end. That distinction is why the wording changed.
+#
+# ⭐ AND IT UNIFIES EVERY LIMIT THIS SCRIPT HAS, which were recorded separately
+# as three unrelated blind spots. Sorted by WHAT THE CHECK MUST READ:
+#
+#   LINE-LOCAL ABSENCE CHECK — one line suffices; this script is good at these
+#     R1 missing device node · R4 missing backing device · R5 missing model
+#     R6 status-clause on a pointer        (1 TP / 0 FP across both repos)
+#
+#   TWO-PLACE COMPARISON — needs the OTHER place; NO TOOL EXISTS
+#     ⑧ QOM: grep the RESOLVED string across trees + assert
+#            type_register_static() uniqueness
+#     the value clause: resolve the pointer, diff the magnitude vs the target
+#
+#   NOT TEXT AT ALL
+#     the tier-② unstated premise: needs `lsblk`, not a document checker
+#
+# ⇒ **An absence-check cannot see a COLLISION or a DIVERGENCE, because both
+#   require a second location.** ⑧ and the value clause are not two blind spots;
+#   they are ONE blind spot twice. The missing tool is a cross-location
+#   comparator, and neither author has built it. *(Unification by @95emulator
+#   from this script's own results.)*
 _PTR_TOKEN='see (the )?§[0-9]|see the [A-Za-z][A-Za-z-]* (entry|gotcha|section|note|table|block)|§[0-9.]+ (above|below)|see (above|below)'
 _TARGET_STATUS='disputed|withheld|unresolved|conflicting|contradicted|superseded|stale|pending|outdated|is open|still open|not yet|TBD|awaiting'
 
