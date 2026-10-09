@@ -133,9 +133,9 @@ bash skills/imx95-npu-benchmark/scripts/bench_npu.sh \
      --model /run/media/root-mmcblk0p2/model_neutron.tflite --runs 50
 ```
 
-⚠️ **`df -h` before staging a model anywhere.** `/run/media/root-mmcblk0p2` is the default, but it
-had only **555 MB free** (2026-08-12), and `/`'s free space has three conflicting measurements — so
-"never `/`" is no longer safe as standing advice either. See ground-truth §5.
+⚠️ **`df -h` before staging a model anywhere.** `/run/media/root-mmcblk0p2` is the default but holds
+only **555 M** of 11 G; `/` holds **8.7 G** of 56 G, so "never `/`" is now backwards. And `/` shed
+**10 GB in two days** — a free-space figure on this board has a shelf life of hours. Ground-truth §5.
 
 ---
 

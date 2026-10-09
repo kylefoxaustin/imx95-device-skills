@@ -32,9 +32,9 @@ Usage: run_dvm.sh --model <model.dvm> [--ep all] [--outdir DIR]
   --model   A .dvm compiled HOST-SIDE with the Kinara SDK. There is no on-board
             compiler; a .tflite/.onnx will not work here.
   --ep      Execution provider list for nnapp (default: all)
-  --outdir  Where to write config + log. Defaults to the eMMC data partition.
-            Neither partition has guaranteed headroom — `df -h` both first
-            (ground-truth §5: the free-space figures are in conflict).
+  --outdir  Where to write config + log. Defaults to the eMMC data partition,
+            which is the SMALLER one (555 M of 11 G; / holds 8.7 G of 56 G).
+            `df -h` both first — free space here moves by GB/day (§5).
 EOF
 }
 

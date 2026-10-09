@@ -58,8 +58,9 @@ Every row carries a provenance tag. Full table with sources:
 | GPU | **Arm Mali-G310** (1 core, r0p0) — graphics only, OpenCL is an ICD stub | [MEASURED] |
 | OS | Yocto Linux **6.18**, gcc 15.2 on-board | [MEASURED] |
 | Memory | 16 GB LPDDR, ~13 GB/s aggregate | size [SOURCED] · bandwidth [MEASURED] |
-| Storage | eMMC 29.6 GB, 298 / 152 MB/s | size [SOURCED] · r/w [MEASURED] |
-| ⛔ Free space | **No figure.** `/` has three conflicting measurements (ground-truth §5); `/run/media/root-mmcblk0p2` had 555 MB on 2026-08-12. **`df -h` both before staging anything.** | [UNVERIFIED] |
+| Storage | 298 / 152 MB/s. ⚠️ **The "eMMC 29.6 GB" spec is contradicted** — mounted filesystems total 67 G (§5) | r/w [MEASURED] · size [UNVERIFIED] |
+| Filesystems | `/` **56 G** (8.7 G free, 84%) · `/run/media/root-mmcblk0p2` **11 G** (555 M free, 95%) | [MEASURED 2026-10-08] |
+| ⚠️ Free space | **Volatile — `/` lost 10 GB in two days.** `df -h` before staging; never plan against a figure from a doc. | [MEASURED 2026-10-08] |
 
 > ⚠️ **This is a DUAL-NPU board, and the GPU is not an ML target.** An earlier version of this
 > table listed a Vivante GC7000UL (that is i.MX8M Plus), a single ~4 TOPS NPU, and kernel 6.6.x.

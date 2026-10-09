@@ -63,9 +63,9 @@ Options:
   --min-margin C   Refuse if any thermal zone is within this many degrees of ITS
                    OWN trip point (default 15). Not an absolute temperature —
                    this board has PMIC zones that report a flat 105 C placeholder.
-  --outdir DIR     Where to write the run log (default /run/media/root-mmcblk0p2/...).
-                   `df -h` first — neither partition has guaranteed room, and the
-                   recorded free-space figures conflict (ground-truth §5).
+  --outdir DIR     Where to write the run log (default /run/media/root-mmcblk0p2/...,
+                   which is the SMALLER filesystem: 555 M of 11 G, vs / at 8.7 G
+                   of 56 G). `df -h` first — free space moves by GB/day (§5).
 EOF
 }
 

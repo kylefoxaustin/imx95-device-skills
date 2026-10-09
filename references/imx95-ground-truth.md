@@ -64,7 +64,8 @@ source, until reconciled).
 | Add-in NPU | **Kinara ARA240** on M.2, PCI `0000:01:00.0` `1e58:0002`, driver `uiodma` | [MEASURED] |
 | ARA240 peak | ~40 TOPS | [SOURCED] |
 | Real-time cores | **Cortex-M7** (`imx-rproc`, attached/running) + **Cortex-M33** (System Manager) | [MEASURED] |
-| Storage | eMMC, 29.6 GB, **298 MB/s read / 152 MB/s write** | read/write [MEASURED], size [SOURCED] |
+| Storage speed | **298 MB/s read / 152 MB/s write** | [MEASURED] |
+| ⚠️ Storage size | ~~eMMC 29.6 GB~~ — **CONTRADICTED, do not use.** `/` alone measures **56 G** and `/run/media/root-mmcblk0p2` **11 G**: 67 G of mounted filesystem cannot sit on a 29.6 GB device. The vendor figure was never measured here. True capacity, and which device backs `/`, are open — see §5. | [UNVERIFIED] |
 | OS | Yocto, **Linux 6.18**, **gcc 15.2 on-board** | [MEASURED] |
 | Hostname | `imx95evk` | [MEASURED] |
 | Process | TSMC 16 nm FinFET (16FFC-class) | [SOURCED] |
@@ -427,38 +428,68 @@ the same prompt even at temperature 0**, which breaks prompt caching, golden-out
 | fact | value | tag |
 |---|---|---|
 | Access | `ssh imx95` (alias on skippy, key auth, user **root, no password**) | [MEASURED] |
-| Rootfs `/` free space | ⛔ **DO NOT QUOTE A FIGURE — three measurements disagree.** `df -h /` on the board and use what you see. See the conflict note below. | [UNVERIFIED] |
-| Staging partition | `/run/media/root-mmcblk0p2` — **555 MB free, 95% used**. It was once "~4 G free"; that advice is dead. | [MEASURED 2026-08-12] |
-| Which one to stage on | ⛔ **No standing answer.** Which partition has room has already inverted once. `df -h /` **and** `df -h /run/media/root-mmcblk0p2` before every transfer. | — |
+| Rootfs `/` **total** | **56 G**, device `/dev/root` — three readings, two independent sessions, agreeing | [MEASURED 2026-10-08] |
+| Rootfs `/` **free** | **8.7 G free, 84% used** — but see the volatility warning below; this number moves by *gigabytes per day* | [MEASURED 2026-10-08 22:02] |
+| Staging partition | `/run/media/root-mmcblk0p2` = `/dev/mmcblk0p2`, **11 G total, 9.1 G used, 555 M free, 95%** | [MEASURED 2026-10-08 16:49] |
+| Which one to stage on | `/` is currently the roomier by ~16× (8.7 G vs 555 M) — **the opposite of the August advice**. Still `df -h` both: the ordering has already flipped once. | [MEASURED 2026-10-08] |
+| Device backing `/` | **[UNKNOWN]** — `/dev/root` is a symlink nobody has resolved. It is *not* `mmcblk0p2`, and 56 G + 11 G of mounted filesystems cannot fit on the 29.6 GB eMMC in §1. Run `findmnt -no SOURCE /` and `lsblk`. | [UNKNOWN] |
 | TFLite C API | `/usr/lib/libtensorflow-lite.so.2.19.0` **exports the full C API** | [MEASURED] |
 | …but | **no headers ship**, and there is **no unversioned `.so` symlink** | [MEASURED] |
 | Link line | `-l:libtensorflow-lite.so.2.19.0 -lm -lpthread -ldl -lstdc++` | [MEASURED] |
 | Package feeds | sealed Yocto — assume **no working feed**; build on host, `scp` over | [MEASURED] |
 
-> ### ⛔ The rootfs free-space conflict — unresolved, and the figure is withheld
+> ### ⚠️ `/` free space is VOLATILE — never cache it, and never plan against a remembered figure
 >
-> Three measurements of `/` on the same board, none retracted:
+> Every reading of `/` on this board, in order. All are `df -h` output; none is retracted.
 >
-> | date | claim | source |
-> |---|---|---|
-> | 2026-08-12 | **100% full, 310 MB free** | this repo (`df -h`, on-board) |
-> | 2026-10-06 | **14 GB free, "76% used"** | this repo |
-> | 2026-10-06 | **19 GB free** | @95emulator, via the `imx95-frdm` registry card |
+> | when | total | free | used | source |
+> |---|---|---|---|---|
+> | 2026-08-12 | — | **310 M** | 100% | this repo |
+> | 2026-10-06 (early) | 56 G | ~3.6 G | 94% | @qualcomm-8e, pre-cleanup |
+> | 2026-10-06 (mid) | 56 G | **14 G** | 76% | this repo |
+> | 2026-10-06 (late) | 56 G | **19 G** | 66% | @95emulator, post-cleanup |
+> | 2026-10-08 16:49 | 56 G | **8.7 G** | 84% | @batt_finetune |
+> | 2026-10-08 22:02 | 56 G | **8.7 G** | 84% | @batt_finetune |
 >
-> **The middle row fails an internal check and is therefore not usable as MEASURED.** 76 % used with
-> 14 GB free implies a filesystem of ~58 GB; §1 gives the whole eMMC as 29.6 GB. One of the pair was
-> misread, and I cannot tell which without the raw `df` line. The third row disagrees with it by 5 GB
-> on the same day.
+> **These never disagreed.** 2026-10-06 is the day @qualcomm-8e deleted ~15 GB (a 7.7 G Qwen2.5-7B
+> checkout, 5.3 G of `/root/.cache`, 1.9 G of `/root/.ollama`), so `/` went 3.6 G → 19 G free *during
+> that day*. The 14 G reading is a read taken partway through a staged multi-directory delete, and it
+> lands exactly where it should. **Timestamp to the minute, not the day, whenever the quantity is
+> in flight** — a date-only stamp turned one moving number into an apparent three-way contradiction.
 >
-> So this document emits **no** rootfs free-space figure. `df -h` before you act. The exact `df -h`
-> output has been requested from @95emulator; the board was held by another session when this was
-> written, so re-measuring was not available.
+> **The practical warning stands and is now better founded:** `/` lost **10 GB in two days** without
+> anyone announcing it. A free-space figure on this board has a shelf life of hours. `df -h` is a
+> precondition of staging, not a fact to look up here.
 >
-> **The install instruction that depended on this is withdrawn too.** v1 said
-> `git clone … /opt/imx95-device-skills`, and the August correction said "install to
-> `/run/media/root-mmcblk0p2` instead" — but that partition is the **555 MB** one, so the August
-> correction now points at the *tighter* of the two. Size the clone against a live `df`, not against
-> either remembered answer.
+> ### 🔴 I withheld the 14 G figure on a bad check — logged because the check was the defect
+>
+> On 2026-10-08 I marked `14 G free / 76% used` **[UNVERIFIED]** and refused to emit it, reasoning:
+> *76% used with 14 G free implies a ~58 G filesystem, but §1 gives the eMMC as 29.6 GB, so the pair
+> cannot both be right.* The arithmetic was correct. **The check was invalid**, for the reason this
+> document exists to prevent:
+>
+> > **29.6 GB was tagged `size [SOURCED]`** in §1 at the time — a vendor figure nobody here had
+> > measured. (It is now [UNVERIFIED], because the board contradicts it outright.)
+> > `14 G free / 76% used` was **MEASURED**, on the board, by `df`.
+> > **Law 1: a SOURCED number may never be compared against a MEASURED one.** I had it backwards —
+> > I let an unverified spec invalidate a real measurement, with the tag sitting in my own table.
+>
+> The measured total is **56 G**, read three times by two sessions. 14 / 0.24 ≈ 58 ≈ 56 — the pair
+> was self-consistent with the real filesystem all along. The number that fails is **29.6 GB**:
+> `/` (56 G) plus `/run/media/root-mmcblk0p2` (11 G) is 67 G of mounted filesystem, which cannot sit
+> on a 29.6 GB device at all. See §1, where it is now [UNVERIFIED]. Caught by @95emulator.
+>
+> **The transferable lesson: a consistency check is itself an instrument, and it carries the
+> provenance of its reference value.** Checking a MEASURED number against a SOURCED one does not
+> validate anything — at best it detects that they differ, and the honest conclusion is then
+> *"the spec is unverified"*, never *"the measurement is unusable."* Before refusing to emit a
+> number because it failed a check, **check the tag on the thing you checked it against.**
+>
+> **Install-path advice, now settled by the measurements above.** v1's unconditional
+> `git clone … /opt/imx95-device-skills` was wrong when `/` was full; August's "use
+> `/run/media/root-mmcblk0p2` instead" is wrong *now*, because that is the **555 M** partition and
+> `/` currently has 16× more room. Both were standing answers to a question that only has a live
+> one. `df -h` both mounts, then choose.
 
 ---
 
