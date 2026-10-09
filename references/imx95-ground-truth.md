@@ -75,13 +75,28 @@ Every fact carries exactly one tag. **A fact with no tag is a bug in this file, 
 >    artifact you are already inside.** "Do I already know this?" is cheaper than the reasoning it
 >    replaces.
 >
-> ### ⚠️ The mechanical check catches THREE of the four. Do not read it as four.
-> `evals/relation_lint.sh` enforces this rule on **fact rows only**, and is validated in both
-> directions (`--self-test`, 9 checks) against the historical defect lines **taken verbatim from git
-> history**. It catches #1, #3 and #4. **It cannot catch #2** — that line cited a device node *and*
-> `§5`, so every rule is correctly discharged by it; the error was an **unstated premise** (that both
-> mounts were on one device), and no keyword check can see a premise that was never written down.
-> #2 needed a command (`lsblk`), not a checker.
+> ### ⭐ SUB-RULE 3 — MOUNT POINTS ARE WHERE THIS CLASS ENTERS
+> **A fact row that pins a storage claim to a MOUNT POINT must also carry the backing device node**
+> (or `findmnt -no SOURCE <path>` as the discharge). A mount point names a location in a namespace
+> and is *silent about which silicon backs it*.
+>
+> This is defect #2's actual vector, and it means #2 was **not** structurally uncatchable as first
+> claimed here. Its row contained `/run/media/root-mmcblk0p2` and `/` — **two mount points, zero
+> device nodes** — and the unstated "both are on one device" premise could only enter *because a
+> mount point was allowed to stand in for a device*. You cannot lint the premise; you **can** lint
+> the thing whose absence permitted it, and that is a path-shaped regex plus an absence check.
+> It generalises past this board: any claim about capacity, free space or throughput attached to a
+> mount point is one `remount`, one card swap, or one `/dev/root` alias away from describing
+> different hardware. *Supplied by @95emulator.*
+>
+> ### ⚠️ What the mechanical check covers: 4 of 4 vectors — and the PREMISE is still invisible
+> `evals/relation_lint.sh` enforces this on **fact rows only**, validated both directions
+> (`--self-test`, 11 checks) against historical defect lines **taken verbatim from git history**.
+> With sub-rule 3 it flags all four. **But it closes #2's VECTOR, not #2's REASONING** — write the
+> same false claim with correct `/dev/` nodes on both sides and the lint is silent, because the
+> single-device premise is still nowhere on the page. The self-test asserts that case stays quiet,
+> precisely so nobody reads "4 of 4" as *"the lint would have stopped the error."* **It would have
+> stopped the sloppiness that let the error in. Only `lsblk` stops the error.**
 >
 > **The lint's own first draft claimed 4/4 — because its #2 fixture was a sentence I invented to make
 > the test pass.** That is this same defect class, committed while building the tool meant to prevent
@@ -515,10 +530,10 @@ the same prompt even at temperature 0**, which breaks prompt caching, golden-out
 |---|---|---|
 | Access | `ssh imx95` (alias on skippy, key auth, user **root, no password**) | [MEASURED] |
 | 🔴 `/` lives on the **SD card** | `/` = **`/dev/mmcblk1p2`**, 57.7 G ext4 on the **58 G `mmcblk1`**. The board boots and runs from the card. `df` shows it as `/dev/root`, which is a kernel-supplied name, not a symlink — `readlink -f /dev/root` returns *itself*. **`findmnt -no SOURCE /` is the only way to get the real device.** | [MEASURED 2026-10-08 22:20] |
-| `/` free | **8.7 G free, 84% used** — volatile; see the warning below | [MEASURED 2026-10-08 22:20] |
+| `/` free (`/dev/mmcblk1p2`) | **8.7 G free, 84% used** — volatile; see the warning below | [MEASURED 2026-10-08 22:20] |
 | Staging partition | `/run/media/root-mmcblk0p2` = `/dev/mmcblk0p2`, **11 G total, 555 M free, 95%** — a partition of the **eMMC**, i.e. a *different physical device* from `/` | [MEASURED 2026-10-08] |
 | 🔴 The eMMC holds a **second, non-live rootfs** | `mmcblk0p2` (10.6 G ext4) is an ext4 root that is **not** the running one. `mmcblk0p1` and `mmcblk1p1` are **two 256 M vfat boot partitions**, both mounted. | [MEASURED 2026-10-08] |
-| Live boot partition | **`/run/media/boot-mmcblk1p1`** — the **SD card's** vfat, consistent with booting from the card. Both `.ORIG` DTB backups live on the SD card too (that partition **and** `/root`) — see §2.3; the eMMC's boot partition is not involved. | [SOURCED — qualcomm dossier §2] |
+| Live boot partition | **`/run/media/boot-mmcblk1p1`** — `/dev/mmcblk1p1`, the **SD card's** vfat, consistent with booting from the card. Both `.ORIG` DTB backups live on the SD card too (that partition **and** `/root`) — see §2.3; the eMMC's boot partition is not involved. | [SOURCED — qualcomm dossier §2] |
 | Which one to stage on | `/` (`mmcblk1p2`, SD card) is the roomier by ~16× — 8.7 G vs 555 M. **The opposite of the August advice.** Still `df -h` both. | [MEASURED 2026-10-08] |
 | Full block layout | `mmcblk0` 29.6 G eMMC → p1 256 M vfat `/run/media/boot-mmcblk0p1`, p2 10.6 G ext4 `/run/media/root-mmcblk0p2` · `mmcblk0boot0/1` 31.5 M each · `mmcblk1` 58 G SD card → p1 256 M vfat `/run/media/boot-mmcblk1p1`, p2 57.7 G ext4 **`/`** | [MEASURED 2026-10-08] |
 | Uptime at probe | **29 days** — so an undated PID from "one boot" may still be live, but is still unsafe to rely on | [MEASURED 2026-10-08 22:20] |

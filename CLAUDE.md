@@ -58,7 +58,7 @@ Full table in `references/imx95-ground-truth.md` §1. The essentials:
 | NPU #2 | **Kinara ARA240** on M.2 — runs CNNs *and* a 7B LLM | [MEASURED] |
 | OS | Yocto, **Linux 6.18**, gcc 15.2 on-board | [MEASURED] |
 | 🔴 Two MMC devices | `/` = `mmcblk1p2` on the **58 G SD card** (56 G, 8.7 G free) — the board boots from the card. `/run/media/root-mmcblk0p2` is the **29.6 G eMMC** (11 G, 555 M free) and holds a *non-live* rootfs. | [MEASURED 2026-10-08] |
-| ⚠️ Free space | **Volatile — `/` lost 10 GB in two days.** `df -h` before staging; `/` is currently the roomier by ~16×, the reverse of the August advice. | [MEASURED 2026-10-08] |
+| ⚠️ Free space | **Volatile — `/` (`/dev/mmcblk1p2`) lost 10 GB in two days.** `df -h` before staging; `/` is currently the roomier by ~16×, the reverse of the August advice. | [MEASURED 2026-10-08] |
 
 > **This is a DUAL-NPU board.** v1 did not know the second one existed — zero references to
 > `ara240`, `kinara` or `nnapp`. Roughly half the board's AI capability, and the entire generative-AI

@@ -7,25 +7,31 @@
 #     A RELATION NEEDS ITS OWN PROVENANCE.
 #     "Name the artifact that establishes this JOIN."
 #
-# ─── WHAT THIS CATCHES: 3 OF THE 4 DEFECTS THAT MOTIVATED IT. NOT 4. ─────────
+# ─── WHAT THIS CATCHES: ALL 4 VECTORS. NONE OF THE REASONING. ────────────────
 #
 # Validated retrospectively against the four real 2026-10-08 defects, each line
 # taken VERBATIM FROM GIT HISTORY (not paraphrased — see the note below):
 #
-#   #1  8bd1f17 L67   "| Storage | eMMC, 29.6 GB, ... |"              CAUGHT by R1
-#   #2  3f7d646 L68   "67 G of mounted filesystem cannot sit on a
-#                      29.6 GB device ... — see §5"                   ❌ NOT CAUGHT
-#   #3  (pre-fix)     "eMMC 29.6 GB [SOURCED], microSD slot ..."      CAUGHT by R2
+#   #1  8bd1f17 L67   "| Storage | eMMC, 29.6 GB, ... |"              R1
+#   #2  3f7d646 L68   "`/` alone measures 56 G and
+#                      /run/media/root-mmcblk0p2 11 G: 67 G ..."      R4
+#   #3  (pre-fix)     "eMMC 29.6 GB [SOURCED], microSD slot ..."      R2
 #   #4  23da184 L436  "...This is almost certainly why the `.ORIG`
-#                      DTB backups were reported in two places."      CAUGHT by R3
+#                      DTB backups were reported in two places."      R3
 #
-# 🔴 WHY #2 IS OUT OF REACH, AND WHY THAT IS THE IMPORTANT PART.
-# Defect #2's real text cites a device node (`/run/media/root-mmcblk0p2`) AND a
-# document section (`§5`). Every rule here is discharged by it, correctly — the
-# sentence was properly cited. The error was an UNSTATED PREMISE: that both
-# mounts lived on one device. **No keyword lint can see a premise that was never
-# written down.** #2 was the subtlest of the four and it is the one that needed a
-# command (`lsblk`), not a checker.
+# 🔴 #2 WAS FIRST DOCUMENTED HERE AS STRUCTURALLY UNCATCHABLE. THAT WAS WRONG,
+# and @95emulator supplied the correction: you cannot lint the PREMISE, but you
+# CAN lint the thing whose absence PERMITTED it. #2's row carried two MOUNT
+# POINTS and zero device nodes; the unstated "both are on one device" premise
+# could only enter because a mount point was allowed to stand in for a device.
+# R4 closes that vector mechanically.
+#
+# ⚠️ BUT R4 DOES NOT CLOSE #2's REASONING, AND THE DISTINCTION MATTERS.
+# Write the same false claim with correct `/dev/` nodes on both sides and this
+# script is SILENT — the single-device premise is still nowhere on the page.
+# Self-test (b1) asserts exactly that case stays quiet, so "4 of 4" can never be
+# read as "the lint would have stopped the error". It would have stopped the
+# sloppiness that let the error in. Only `lsblk` stops the error.
 #
 # ⚠️ THE FIRST VERSION OF THIS SCRIPT CLAIMED 4/4 — because its #2 fixture was a
 # PARAPHRASE invented to make the test pass ("...that is why the figure is
@@ -37,7 +43,7 @@
 # ─── BOTH-DIRECTION VALIDATION ───────────────────────────────────────────────
 # @qualcomm: "a checker tuned until it's quiet is worse than none" — silence gets
 # read as evidence. `--self-test` therefore asserts BOTH that the lint fires on
-# the 3 catchable historical defects AND that it stays silent on legitimate lines
+# all 4 historical defect VECTORS AND that it stays silent on legitimate lines
 # that look similar. An earlier R3 fired on every explanatory "because" in prose
 # — 20+ findings, almost all false — which is the opposite failure and just as
 # useless, because a checker nobody believes is a checker nobody reads.
@@ -67,6 +73,36 @@ _AMBIGUOUS_NOUN='eMMC|rootfs|root filesystem|SD card|the card'
 # exactly this. Narrow, and deliberately keyed on the file EXTENSION rather than on the
 # substring "emmc", so it cannot be stretched to excuse a real storage claim.
 _FILENAME_ROW='\.uuu|\.dts|\.dtsi|\.dtb|\.bin|\.wic|\.sdcard'
+# ── Mount points are where this whole class ENTERS (R4, @95emulator) ─────────
+# A mount point names a location in a namespace and is SILENT about which
+# silicon backs it. Defect #2's real row contained `/run/media/root-mmcblk0p2`
+# and `/` — two mount points, zero device nodes — and that is precisely what let
+# the unstated "both are on one device" premise in.
+#
+# 🪤 AND IT EXPOSED A BUG IN THIS SCRIPT: `/run/media/root-mmcblk0p2` is a mount
+# DIRECTORY whose name happens to contain "mmcblk0p2", so the naive
+# `mmcblk[0-9]` discharge matched it and R1 fell silent. The checker was fooled
+# by a string RESEMBLING a device node — the same name-vs-referent confusion it
+# exists to catch. Fix: strip mount paths from the line BEFORE looking for a
+# device node, so only a real `/dev/...` or a bare token can discharge.
+_MOUNT_PATH='/run/media/[A-Za-z0-9_.-]*|/mnt/[A-Za-z0-9_.-]*|/boot[A-Za-z0-9_./-]*'
+# A storage claim MUST carry a MAGNITUDE. The first version accepted the bare
+# words "free", "full" and "capacity", and immediately produced a false positive
+# on the ARA240 row: *"Refuses to claim the device is free (occupancy is
+# host-undetectable)"* — where "free" means an UNOCCUPIED NPU, not disk space.
+# A word-sense collision, which is this file's own subject arriving one more
+# time. Requiring a number makes the sense unambiguous.
+_STORAGE_CLAIM='[0-9][0-9.]* ?(G|GB|GiB|M|MB|MiB|TB)\b|MB/s|[0-9]+ ?% used|[0-9]+ sectors'
+# Mount-point tokens. NOTE the bare backtick-slash-backtick form is NOT listed:
+# it matched the path separator inside `` `nnapp`/`.dvm` `` and read a code-span
+# separator as the root filesystem. Only a cell-leading `/` or `/` followed by a
+# verb of possession counts.
+_MOUNT_TOKEN="$_MOUNT_PATH"'|^\| *`/` |`/` (free|is|has|lost|holds|measures|shed)|the rootfs|rootfs is'
+
+# Strip mount paths, then ask whether a REAL device node remains.
+_strip_mounts() { printf '%s' "$1" | sed -E "s#($_MOUNT_PATH)##g"; }
+_REAL_NODE='/dev/[a-z]|`mmcblk[0-9]|`/dev|mmcblk[0-9]p?[0-9]?`|findmnt'
+
 # NOTE the tags are matched WITHOUT a closing bracket. The first version required
 # `\[UNVERIFIED\]` exactly, so a tag that carried its reason — `[UNVERIFIED: no
 # 15x15 board in the fleet]`, which is the better way to write it — failed to
@@ -97,7 +133,7 @@ _report() {   # <file> <lineno> <rule> <why> <line>
 }
 
 lint_file() {   # <path>
-    local f="$1" n=0 line
+    local f="$1" n=0 line bare
     [ -f "$f" ] || { echo "relation_lint: no such file: $f" >&2; return 3; }
     while IFS= read -r line; do
         n=$((n + 1))
@@ -117,11 +153,27 @@ lint_file() {   # <path>
               'hedged causal claim with no artifact cited — an invented mechanism, or cite the source' "$line"
         fi
 
+        # R1 — ambiguous hardware noun with no device node. Mount paths are
+        # stripped first: a mount DIRECTORY named after a device is not a device.
+        local bare; bare="$(_strip_mounts "$line")"
         if printf '%s' "$line" | grep -qiE "$_AMBIGUOUS_NOUN" \
-           && ! printf '%s' "$line" | grep -qE "$_NODE_CITED" \
+           && ! printf '%s' "$bare" | grep -qE "$_NODE_CITED" \
            && ! printf '%s' "$line" | grep -qiE "$_FILENAME_ROW"; then
             _report "$f" "$n" R1 \
               'hardware noun with >1 possible referent and no device node' "$line"
+        fi
+
+        # R4 — a storage claim attached to a MOUNT POINT with no backing device.
+        # This is the vector defect #2 came in through: a mount point standing in
+        # for a device. Generalises past this board — any capacity, free-space or
+        # throughput claim pinned to a mount point is one remount, one card swap
+        # or one /dev/root alias away from describing different hardware.
+        if printf '%s' "$line" | grep -qE "$_MOUNT_TOKEN" \
+           && printf '%s' "$line" | grep -qiE "$_STORAGE_CLAIM" \
+           && ! printf '%s' "$bare" | grep -qE "$_REAL_NODE" \
+           && ! printf '%s' "$line" | grep -qE '\[UNKNOWN|\[UNVERIFIED'; then
+            _report "$f" "$n" R4 \
+              'storage claim pinned to a MOUNT POINT with no backing device — add the device node or `findmnt -no SOURCE <path>`' "$line"
         fi
     done < "$f"
     return 0
@@ -145,7 +197,7 @@ self_test() {
     d3='| Storage | eMMC 29.6 GB, microSD slot | size [SOURCED] |'
     d4='| 🔴 The eMMC holds a **second, non-live rootfs** | `mmcblk0p2` (10.6 G ext4) is an ext4 root that is **not** the running one. `mmcblk0p1` and `mmcblk1p1` are **two 256 M vfat boot partitions**, both mounted. This is almost certainly why the `.ORIG` DTB backups were reported "in two places". | [MEASURED 2026-10-08] |'
 
-    echo "--- (a) must FLAG the 3 catchable historical defects"
+    echo "--- (a) must FLAG historical defects #1, #3, #4 (R1/R2/R3)"
     for spec in "1:$d1" "3:$d3" "4:$d4"; do
         _run_one "${spec#*:}"
         if [ "$FINDINGS" -gt 0 ]; then
@@ -155,17 +207,36 @@ self_test() {
         fi
     done
 
-    # (b) The KNOWN-UNCATCHABLE one. Asserting this stays quiet keeps the
-    #     limitation honest: if a future edit makes it fire, the header's
-    #     "3 of 4" claim is stale and must be updated.
-    echo "--- (b) defect #2 is KNOWN out of reach (unstated premise) — assert it stays quiet"
-    _run_one '| ⚠️ Storage size | ~~eMMC 29.6 GB~~ — **CONTRADICTED, do not use.** `/` alone measures **56 G** and `/run/media/root-mmcblk0p2` **11 G**: 67 G of mounted filesystem cannot sit on a 29.6 GB device. True capacity, and which device backs `/`, are open — see §5. | [UNVERIFIED] |'
+    # (b) #2, now CAUGHT by R4 — via its vector, not its premise.
+    #
+    # This assertion was inverted on 2026-10-08. It previously asserted #2 stays
+    # QUIET and said: "if a future edit makes it fire, the header's 3-of-4 claim
+    # is stale and must be updated." @95emulator then supplied the rule, the
+    # fixture duly failed, and the header was updated. That is a fixture doing
+    # its job — recording a limitation so precisely that removing the limitation
+    # breaks the test. Note the ORIGINAL defect text is tagged [UNVERIFIED], so
+    # R4's tag discharge is removed here to test the row as it would read
+    # WITHOUT that tag, which is how it was first written.
+    echo "--- (b) defect #2 — now CAUGHT by R4, via its vector (mount point for device)"
+    _run_one '| ⚠️ Storage size | ~~eMMC 29.6 GB~~ — **CONTRADICTED.** `/` alone measures **56 G** and `/run/media/root-mmcblk0p2` **11 G**: 67 G of mounted filesystem cannot sit on a 29.6 GB device. | [MEASURED] |'
+    if [ "$FINDINGS" -gt 0 ]; then
+        echo "  [PASS] #2 flagged — two mount points, zero device nodes"; pass=$((pass + 1))
+    else
+        echo "  [FAIL] #2 slipped — R4 regressed; the header claims it is caught"; fail=$((fail + 1))
+    fi
+
+    # (b1) The PREMISE itself is still unreadable, and that limit is permanent.
+    # Same claim, correctly cited with real device nodes: the single-device
+    # premise is still wrong, and nothing here can see it. R4 closes the VECTOR,
+    # not the premise. Keep this asserting quiet so nobody reads 4-of-4 as
+    # "the lint would have stopped the reasoning error".
+    echo "--- (b1) the PREMISE stays invisible even when properly cited — permanent limit"
+    _run_one '| Storage size | `/dev/mmcblk1p2` measures **56 G** and `/dev/mmcblk0p2` **11 G**: 67 G cannot sit on a 29.6 GB device. | [MEASURED] |'
     if [ "$FINDINGS" -eq 0 ]; then
-        echo "  [PASS] #2 quiet, as documented (it cited a node AND §5; the error was a premise)"
+        echo "  [PASS] premise invisible, as documented — R4 closes the vector, not the reasoning"
         pass=$((pass + 1))
     else
-        echo "  [FAIL] #2 now fires — GOOD news, but the header says 3-of-4 and is now WRONG. Update it."
-        fail=$((fail + 1))
+        echo "  [FAIL] unexpected finding — re-read what R4 is claiming to cover"; fail=$((fail + 1))
     fi
 
     # (b2) The filename exemption's KNOWN HOLE, asserted rather than hidden.
