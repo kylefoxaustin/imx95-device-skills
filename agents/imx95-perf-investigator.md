@@ -42,7 +42,11 @@ the final report template at the end of this document requires data from every s
 
 Before starting the investigation, confirm:
 
-1. You are connected to the correct board (`hostname` and `uname -r` match expectations).
+1. You are connected to the correct board — **verify with `cat /proc/device-tree/model`, which must
+   read `NXP FRDM-IMX95-PRO`. NOT with `hostname`:** two physically different boards in the fleet
+   answer to `imx95evk`, and the wrong one returns perfectly self-consistent readings with no error
+   to notice. A whole investigation can complete against the wrong board and look clean.
+   `uname -r` is worth checking too, but **model is the identity**.
 2. The user has described the symptom: which workload is slow, since when, and any recent
    changes (BSP update, new application, changed governor, etc.).
 3. The workload is either currently running or can be reproduced on demand.

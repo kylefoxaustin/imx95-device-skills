@@ -73,7 +73,24 @@ Full table in `references/imx95-ground-truth.md` §1. The essentials:
 ## 2. Connection model
 
 Claude Code runs on the **host** and SSHes to the board (`ssh imx95`, user **root**). Scripts use
-board-side absolute paths. Never assume you are running locally unless `hostname` says `imx95evk`.
+board-side absolute paths.
+
+🔴 **NEVER identify the board by `hostname`.** An earlier version of this line said *"assume you are
+running locally if `hostname` says `imx95evk`"* — but **two physically different boards in the fleet
+answer to `imx95evk`**: this FRDM-IMX95-PRO (10.0.1.181) and an i.MX95 19×19 EVK (10.0.1.221). A peer
+session lost half a session diagnosing the wrong board, and **every reading it took was real and
+self-consistent** — a board with nothing plugged in truthfully reports nothing plugged in. There is
+no error to notice.
+
+**The authoritative check is the device-tree model:**
+
+```bash
+cat /proc/device-tree/model     # "NXP FRDM-IMX95-PRO"  (the EVK says "NXP i.MX95 19X19 board")
+```
+
+`hostname` is a name in the uname/DNS namespace; `model` is the referent. See ground-truth §0
+rule 2: the convenient identifier is the non-authoritative one, every time. *(Measured by
+@95emulator, 2026-10-08.)*
 
 ⚠️ **Dev images ship root with no password.** Set one before the board leaves the bench.
 

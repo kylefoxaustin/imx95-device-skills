@@ -72,7 +72,15 @@ _AMBIGUOUS_NOUN='eMMC|rootfs|root filesystem|SD card|the card'
 # device node there is a false positive, and 2 of the first 8 findings on that file were
 # exactly this. Narrow, and deliberately keyed on the file EXTENSION rather than on the
 # substring "emmc", so it cannot be stretched to excuse a real storage claim.
-_FILENAME_ROW='\.uuu|\.dts|\.dtsi|\.dtb|\.bin|\.wic|\.sdcard'
+#
+# Second exemption, added after the first run over imx95-bsp-skills' SKILL.md
+# files: in a BUILD context "rootfs" names an ARTIFACT BEING PRODUCED, not a
+# mounted filesystem on a device — `bitbake <image_recipe>` / "rootfs changes" /
+# `<recipe>-<machine>.rootfs.ext4`. Demanding a device node there is a category
+# error of the lint's own making: the word is in a different namespace again,
+# which is funny but still a false positive. Keyed on build vocabulary.
+_FILENAME_ROW='\.uuu|\.dts|\.dtsi|\.dtb|\.bin|\.wic|\.sdcard|\.ext4|\.tar|\.manifest'
+_BUILD_CONTEXT='bitbake|image_recipe|<machine>|recipe|yocto|DISTRO|MACHINE='
 # ── Mount points are where this whole class ENTERS (R4, @95emulator) ─────────
 # A mount point names a location in a namespace and is SILENT about which
 # silicon backs it. Defect #2's real row contained `/run/media/root-mmcblk0p2`
@@ -110,6 +118,17 @@ _REAL_NODE='/dev/[a-z]|`mmcblk[0-9]|`/dev|mmcblk[0-9]p?[0-9]?`|findmnt'
 # checker that only accepts the terse form of a tag pushes authors toward the
 # less informative one.
 _NODE_CITED='mmcblk[0-9]|mmc[0-9]|/dev/root|nvme[0-9]|findmnt|lsblk|\[UNKNOWN|\[UNVERIFIED'
+
+# ── R5: hostname is not an identity ──────────────────────────────────────────
+# TWO physically different boards in the fleet answer to `imx95evk` (this
+# FRDM-IMX95-PRO and an i.MX95 19x19 EVK). The failure mode is the nastiest in
+# the family: the wrong board returns readings that are REAL and SELF-CONSISTENT
+# — a board with nothing plugged in truthfully reports nothing plugged in — so
+# there is no error to notice and a whole investigation can finish clean against
+# the wrong machine. Measured by @95emulator after losing half a session to it.
+# Discharge: name /proc/device-tree/model, or say outright it is not unique.
+_HOSTNAME_TOKEN='imx95evk|\bhostname\b'
+_MODEL_CITED='/proc/device-tree/model|device-tree model|NOT UNIQUE|not an identity|NOT AN IDENTITY|non-uniqueness|FRDM-IMX95-PRO'
 
 # Not discharge-able: no artifact on the board establishes card form factor.
 _BANNED_TOKEN='microSD|micro-SD'
@@ -158,9 +177,17 @@ lint_file() {   # <path>
         local bare; bare="$(_strip_mounts "$line")"
         if printf '%s' "$line" | grep -qiE "$_AMBIGUOUS_NOUN" \
            && ! printf '%s' "$bare" | grep -qE "$_NODE_CITED" \
-           && ! printf '%s' "$line" | grep -qiE "$_FILENAME_ROW"; then
+           && ! printf '%s' "$line" | grep -qiE "$_FILENAME_ROW" \
+           && ! printf '%s' "$line" | grep -qiE "$_BUILD_CONTEXT"; then
             _report "$f" "$n" R1 \
               'hardware noun with >1 possible referent and no device node' "$line"
+        fi
+
+        # R5 — hostname used as board identity with no device-tree model cited.
+        if printf '%s' "$line" | grep -qiE "$_HOSTNAME_TOKEN" \
+           && ! printf '%s' "$line" | grep -qiE "$_MODEL_CITED"; then
+            _report "$f" "$n" R5 \
+              'hostname is NOT a board identity — two fleet boards answer to imx95evk; cite /proc/device-tree/model' "$line"
         fi
 
         # R4 — a storage claim attached to a MOUNT POINT with no backing device.
@@ -254,6 +281,15 @@ self_test() {
         fail=$((fail + 1))
     fi
 
+    # (a2) R5 — the hostname instance, from this repo's own pre-fix text.
+    echo "--- (a2) must FLAG hostname-as-identity (R5)"
+    _run_one '| Hostname | `imx95evk` | [MEASURED] |'
+    if [ "$FINDINGS" -gt 0 ]; then
+        echo "  [PASS] bare hostname row flagged"; pass=$((pass + 1))
+    else
+        echo "  [FAIL] hostname row slipped — two boards answer to it"; fail=$((fail + 1))
+    fi
+
     echo "--- (c) must stay SILENT on legitimate fact rows"
     local g
     for g in \
@@ -261,7 +297,8 @@ self_test() {
       '| SD bus configuration | **SDR104, 4-bit** — from `/sys/kernel/debug/mmc1/ios` | [SOURCED — kernel driver] |' \
       '| Live boot partition | `/run/media/boot-mmcblk1p1` — both `.ORIG` copies are there and in `/root`, per dossier §2 | [SOURCED] |' \
       '| …its form factor | **[UNKNOWN]** — neither field says micro- vs full-size | [UNKNOWN] |' \
-      '| Rootfs device | `/dev/mmcblk1p2` via `findmnt` | [MEASURED] |' ; do
+      '| Rootfs device | `/dev/mmcblk1p2` via `findmnt` | [MEASURED] |' \
+      '| Hostname | `imx95evk` — NOT UNIQUE; identify via `/proc/device-tree/model` | [MEASURED] |' ; do
         _run_one "$g"
         if [ "$FINDINGS" -eq 0 ]; then
             pass=$((pass + 1)); echo "  [PASS] quiet: $(printf '%s' "$g" | cut -c1-58)…"

@@ -105,7 +105,45 @@ Every fact carries exactly one tag. **A fact with no tag is a bug in this file, 
 > explanatory "because" in prose) — the opposite failure, and equally useless, since a checker nobody
 > believes is a checker nobody reads. It was narrowed by *scope*, not by sensitivity.
 >
-> *Rule proposed by @95emulator from the four cases; the four cases were mine.*
+> ### ⭐⭐⭐ THE GENERALISATION — SEVEN INSTANCES, AND IT IS A COST PROBLEM, NOT A CARE PROBLEM
+>
+> Every defect above is one shape: **a name in one namespace standing in for a referent in
+> another.** Seven measured instances, four from this repo and three from @95emulator's:
+>
+> | the convenient name | the authoritative referent | what it costs to check |
+> |---|---|---|
+> | a mount point | the backing device | `findmnt -no SOURCE <path>` |
+> | `/dev/root` | the real partition | same — `readlink` returns *itself* |
+> | "the eMMC" | `mmcblk0` vs `mmcblk1` | `lsblk` |
+> | **`hostname`** | **`/proc/device-tree/model`** | one `cat` — **two fleet boards answer to `imx95evk`** |
+> | `/sys/firmware/fdt` (the handed-over blob) | the **live** device tree after driver mutation | a second read of `/sys/firmware/devicetree/base` |
+> | a filename | the file's lineage | a `diff` |
+> | "microSD" | the card's form factor | **nothing — not electrically visible** ⇒ [UNKNOWN] |
+>
+> ## 🔴 IN EVERY ONE, THE NON-AUTHORITATIVE NAMESPACE IS THE CONVENIENT ONE.
+> `hostname` is already in your shell prompt; `model` needs a command. A filename is in the path you
+> just typed; lineage needs a diff. A mount point is what you `cd` to; the device needs `findmnt`.
+> The blob is one file; the live tree is a second read.
+>
+> **The cheap name is always the wrong one — not by coincidence, but because the authoritative
+> referent is precisely the thing that required an extra lookup, which is why nobody looked.**
+>
+> ⇒ **So this is a COST problem, not a CARE problem**, and that explains why a lint works where
+> diligence did not: *the lint moves the cost from recall to CI.* It also predicts where the next one
+> lives — **anywhere a convenient identifier sits beside an authoritative one you must go and fetch.**
+>
+> Two of the seven are worth singling out because they defeat ordinary suspicion:
+> - **`hostname`**: the wrong board returns readings that are *real and self-consistent*. A board with
+>   nothing plugged in truthfully reports nothing plugged in. **There is no error to notice** — half a
+>   session went into diagnosing the wrong machine.
+> - **blob vs live tree**: the two namespaces **share a literal path string** and return contradictory
+>   values, both correct. `fdtget /sys/firmware/fdt …/channel@0 status` → `okay`;
+>   `/sys/firmware/devicetree/base/…/channel@0/status` → `disabled`, because a driver ran
+>   `of_changeset_update_property()` on probe failure. Blaming the bootloader is the natural next step
+>   and the bootloader is innocent.
+>
+> *Rule proposed by @95emulator from four cases of mine; instances ④⑤⑥ and the cost generalisation
+> are theirs, measured 2026-10-08.*
 
 **Primary source:** `IMX95_BOARD_DOSSIER.md` v2.0 (2026-07-16), author Kyle Fox, at
 `~/Documents/GitHub/qualcomm/results/IMX95_BOARD_DOSSIER.md` (`md5 360307ff…`; the copy in
@@ -168,7 +206,7 @@ source, until reconciled).
 > MEASURED leg and two SOURCED legs agree, and no leg alone carries it.
 | 🔴 **The board runs from the SD card, NOT the eMMC** | `/` is `/dev/mmcblk1p2` (57.7 G ext4). The eMMC holds a **second, non-live** rootfs at `mmcblk0p2`. See §5 — this changes every flashing, imaging and "which DTB is live" question. | [MEASURED 2026-10-08] |
 | OS | Yocto, **Linux 6.18**, **gcc 15.2 on-board** | [MEASURED] |
-| Hostname | `imx95evk` | [MEASURED] |
+| Hostname | `imx95evk` — 🔴 **NOT UNIQUE AND NOT AN IDENTITY.** The fleet's i.MX95 **19×19 EVK** answers to the same name. Identify by `cat /proc/device-tree/model` (`NXP FRDM-IMX95-PRO` here; `NXP i.MX95 19X19 board` there). | value [MEASURED] · non-uniqueness [MEASURED 2026-10-08 @95emulator] |
 | Process | TSMC 16 nm FinFET (16FFC-class) | [SOURCED] |
 
 ### 1.1 ❌ Facts the first version of these repos asserted that are WRONG
