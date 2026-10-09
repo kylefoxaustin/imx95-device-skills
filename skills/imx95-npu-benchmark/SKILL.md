@@ -135,7 +135,7 @@ bash skills/imx95-npu-benchmark/scripts/bench_npu.sh \
 
 ⚠️ **`df -h` before staging a model anywhere.** `/run/media/root-mmcblk0p2` is the default but holds
 only **555 M** of 11 G; `/` holds **8.7 G** of 56 G, so "never `/`" is now backwards. Note the two
-are **different physical devices** — `/` is the microSD (`mmcblk1`), the default outdir is the eMMC
+are **different physical devices** — `/` is the SD card (`mmcblk1`), the default outdir is the eMMC
 (`mmcblk0`) — so where you write the log decides which device takes the I/O during a run. And `/` shed
 **10 GB in two days** — a free-space figure on this board has a shelf life of hours. Ground-truth §5.
 

@@ -64,10 +64,11 @@ source, until reconciled).
 | Add-in NPU | **Kinara ARA240** on M.2, PCI `0000:01:00.0` `1e58:0002`, driver `uiodma` | [MEASURED] |
 | ARA240 peak | ~40 TOPS | [SOURCED] |
 | Real-time cores | **Cortex-M7** (`imx-rproc`, attached/running) + **Cortex-M33** (System Manager) | [MEASURED] |
-| Storage speed | **298 MB/s read / 152 MB/s write** | [MEASURED] |
-| eMMC `mmcblk0` | **29.6 GB** (62160896 sectors) — the vendor figure, now confirmed on the board | [MEASURED 2026-10-08] |
-| microSD `mmcblk1` | **58 GB** (121634816 sectors) — **a second MMC device** | [MEASURED 2026-10-08] |
-| 🔴 **The board runs from the microSD, NOT the eMMC** | `/` is `/dev/mmcblk1p2` (57.7 G ext4). The eMMC holds a **second, non-live** rootfs at `mmcblk0p2`. See §5 — this changes every flashing, imaging and "which DTB is live" question. | [MEASURED 2026-10-08] |
+| eMMC `mmcblk0` | **29.6 GB** (62160896 sectors). Bus: **HS400 enhanced strobe, 8-bit, 200 MHz**. Raw-media read **223 MB/s** (`dd iflag=direct`) | [MEASURED 2026-10-08] |
+| SD card `mmcblk1` | **58 GB** (121634816 sectors; 121634816 × 512 B = 62.3 GB decimal = 58.0 GiB, i.e. a **64 GB-marketed card** — not a discrepancy). Bus: **SD UHS SDR104, 4-bit, 208 MHz**. Raw-media read **83.7 MB/s** | [MEASURED 2026-10-08] |
+| …its **form factor** | **[UNKNOWN]** — `type=SD` / `name=SD64G` establish *an SD card of 64 GB marketed capacity*. `name` is a card-supplied vendor string, not a measurement, and **neither field says micro- vs full-size.** Earlier revisions of this file said "microSD"; that was inferred from the board's documented slot and has been withdrawn. | [UNKNOWN] |
+| ⚠️ Storage speed | **298 MB/s read / 152 MB/s write** — **the eMMC, file-level, cache status unrecorded.** Dossier §9 gives the method as *"fio on the real eMMC mount (not tmpfs)"* = `/run/media/root-mmcblk0p2` = `mmcblk0p2`. The SD card is **physically excluded**: SDR104 at 4 bits ceilings near 104 MB/s. But the dossier does **not** record whether fio ran `direct=1`, fio buffers by default, and 298 exceeds the raw-media 223 above — **so do not quote this as a media figure.** | [SOURCED — qualcomm dossier §9; this repo is the relay, not the instrument] |
+| 🔴 **The board runs from the SD card, NOT the eMMC** | `/` is `/dev/mmcblk1p2` (57.7 G ext4). The eMMC holds a **second, non-live** rootfs at `mmcblk0p2`. See §5 — this changes every flashing, imaging and "which DTB is live" question. | [MEASURED 2026-10-08] |
 | OS | Yocto, **Linux 6.18**, **gcc 15.2 on-board** | [MEASURED] |
 | Hostname | `imx95evk` | [MEASURED] |
 | Process | TSMC 16 nm FinFET (16FFC-class) | [SOURCED] |
@@ -430,12 +431,13 @@ the same prompt even at temperature 0**, which breaks prompt caching, golden-out
 | fact | value | tag |
 |---|---|---|
 | Access | `ssh imx95` (alias on skippy, key auth, user **root, no password**) | [MEASURED] |
-| 🔴 `/` lives on the **microSD** | `/` = **`/dev/mmcblk1p2`**, 57.7 G ext4 on the **58 G `mmcblk1`**. The board boots and runs from the card. `df` shows it as `/dev/root`, which is a kernel-supplied name, not a symlink — `readlink -f /dev/root` returns *itself*. **`findmnt -no SOURCE /` is the only way to get the real device.** | [MEASURED 2026-10-08 22:20] |
+| 🔴 `/` lives on the **SD card** | `/` = **`/dev/mmcblk1p2`**, 57.7 G ext4 on the **58 G `mmcblk1`**. The board boots and runs from the card. `df` shows it as `/dev/root`, which is a kernel-supplied name, not a symlink — `readlink -f /dev/root` returns *itself*. **`findmnt -no SOURCE /` is the only way to get the real device.** | [MEASURED 2026-10-08 22:20] |
 | `/` free | **8.7 G free, 84% used** — volatile; see the warning below | [MEASURED 2026-10-08 22:20] |
 | Staging partition | `/run/media/root-mmcblk0p2` = `/dev/mmcblk0p2`, **11 G total, 555 M free, 95%** — a partition of the **eMMC**, i.e. a *different physical device* from `/` | [MEASURED 2026-10-08] |
-| 🔴 The eMMC holds a **second, non-live rootfs** | `mmcblk0p2` (10.6 G ext4) is an ext4 root that is **not** the running one. `mmcblk0p1` and `mmcblk1p1` are **two 256 M vfat boot partitions**, both mounted. This is almost certainly why the `.ORIG` DTB backups were reported "in two places". | [MEASURED 2026-10-08] |
-| Which one to stage on | `/` (microSD) is the roomier by ~16× — 8.7 G vs 555 M. **The opposite of the August advice.** Still `df -h` both. | [MEASURED 2026-10-08] |
-| Full block layout | `mmcblk0` 29.6 G eMMC → p1 256 M vfat `/run/media/boot-mmcblk0p1`, p2 10.6 G ext4 `/run/media/root-mmcblk0p2` · `mmcblk0boot0/1` 31.5 M each · `mmcblk1` 58 G microSD → p1 256 M vfat `/run/media/boot-mmcblk1p1`, p2 57.7 G ext4 **`/`** | [MEASURED 2026-10-08] |
+| 🔴 The eMMC holds a **second, non-live rootfs** | `mmcblk0p2` (10.6 G ext4) is an ext4 root that is **not** the running one. `mmcblk0p1` and `mmcblk1p1` are **two 256 M vfat boot partitions**, both mounted. | [MEASURED 2026-10-08] |
+| Live boot partition | **`/run/media/boot-mmcblk1p1`** — the **SD card's** vfat, consistent with booting from the card. Both `.ORIG` DTB backups live on the SD card too (that partition **and** `/root`) — see §2.3; the eMMC's boot partition is not involved. | [SOURCED — qualcomm dossier §2] |
+| Which one to stage on | `/` (SD card) is the roomier by ~16× — 8.7 G vs 555 M. **The opposite of the August advice.** Still `df -h` both. | [MEASURED 2026-10-08] |
+| Full block layout | `mmcblk0` 29.6 G eMMC → p1 256 M vfat `/run/media/boot-mmcblk0p1`, p2 10.6 G ext4 `/run/media/root-mmcblk0p2` · `mmcblk0boot0/1` 31.5 M each · `mmcblk1` 58 G SD card → p1 256 M vfat `/run/media/boot-mmcblk1p1`, p2 57.7 G ext4 **`/`** | [MEASURED 2026-10-08] |
 | Uptime at probe | **29 days** — so an undated PID from "one boot" may still be live, but is still unsafe to rely on | [MEASURED 2026-10-08 22:20] |
 | TFLite C API | `/usr/lib/libtensorflow-lite.so.2.19.0` **exports the full C API** | [MEASURED] |
 | …but | **no headers ship**, and there is **no unversioned `.so` symlink** | [MEASURED] |
@@ -491,11 +493,11 @@ the same prompt even at temperature 0**, which breaks prompt caching, golden-out
 > **Round 3 — I reserved the board (hard) and ran `findmnt` + `lsblk`. There are TWO MMC devices.**
 >
 >     mmcblk0   29.6 G  eMMC      p1 256 M vfat · p2 10.6 G ext4  -> /run/media/root-mmcblk0p2
->     mmcblk1     58 G  microSD   p1 256 M vfat · p2 57.7 G ext4  -> /
+>     mmcblk1     58 G  SD card   p1 256 M vfat · p2 57.7 G ext4  -> /
 >
 > **The 29.6 GB eMMC spec was right the whole time.** It simply describes a device that `/` does not
 > live on. 67 G across two devices is unremarkable. And the finding that fell out is far more
-> important than the free-space figure that started it: **this board boots and runs from the microSD
+> important than the free-space figure that started it: **this board boots and runs from the SD card
 > card, and the eMMC carries a second, non-live rootfs.**
 >
 > **What actually went wrong both times — and it is one failure, not two.** Both checks compared two
