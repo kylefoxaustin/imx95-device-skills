@@ -960,8 +960,17 @@ file from a transcription of other people's work into something this repo has ve
 
 > The rootfs figure above is the **census value for this 2026-08-12 run** and is deliberately *not*
 > updated: a census records the environment as it was during the measurement, so retro-editing it
-> would destroy the thing it exists to prove. For the board's *current* free space — which is
-> disputed and withheld — see §5.
+> would destroy the thing it exists to prove.
+>
+> ⚠️ *An earlier revision of this note sent the reader to §5 for a current figure that was
+> **"disputed and withheld"**. That status is **stale** — the dispute resolved: `/` is
+> `/dev/mmcblk1p2` on the 58 G SD card (8.7 G free), and `/run/media/root-mmcblk0p2` is the 11 G
+> eMMC partition (555 M free). See §1 and §5.*
+>
+> Found by grepping this file for every value retracted tonight. Worth noting what it was: **not a
+> stale value, but a stale *description of a value's status*.** §5 was corrected; this pointer to §5
+> still described §5's old state. A cross-reference is a claim too, and it rots independently of
+> what it points at.
 
 **`CmaTotal` 5177344 kB = 4.94 GiB** — the neutron DTB is booted, exactly as §2.3 says.
 **`MemTotal` 16097084 kB** — consistent with 16 GB LPDDR [SOURCED].
