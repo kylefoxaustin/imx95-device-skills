@@ -952,15 +952,47 @@ Evidence count across the fleet's i.MX95 repos:
 
 ---
 
-## 8. Camera — [UNKNOWN]
+## 8. Camera — ANSWERED 2026-10-09 BY MEASUREMENT: **nothing is attached, and CSI is disabled**
 
-The first version claimed BSP support for **OV5640, OV13858, OV2775, IMX219, IMX477** and hardcoded
-`i2cdetect -y 4` / `-y 5` for CSI0/CSI1. **None of that is confirmed for this board.** The pipeline
-shape is `Sensor (I²C) → MIPI CSI-2 RX → ISI → V4L2` [SOURCED].
+Q4 had sat open since August, addressed to `imx95-media-test` — a session whose bus cursor last
+advanced **2026-07-11**. It was never going to be answered by correspondence. Measured instead,
+read-only, under a hard lease.
 
-**A camera skill must DETECT and REPORT, never assert:** enumerate with `v4l2-ctl --list-devices`,
-match by **driver name, not device number** (`/dev/videoN` numbering is not stable across BSP updates
-or USB camera insertion), and print what it found. *(Question posted to `imx95-media-test`.)*
+| fact | value | tag |
+|---|---|---|
+| `/dev/video0..3` exist | ⚠️ **ALL FOUR ARE CODECS, NOT CAMERAS** — `video0` C&M Wave6 VPU **decoder**, `video1` Wave6 **encoder**, `video2` `mxc-jpeg-dec`, `video3` `mxc-jpeg-enc` | [MEASURED 2026-10-09] |
+| `/dev/v4l-subdev*` | **NONE** — no sensor subdevices at all | [MEASURED 2026-10-09] |
+| sensor / CSI kernel modules | **none loaded** | [MEASURED 2026-10-09] |
+| MIPI CSI-2 DT nodes | `soc/csi@4ad30000` and `soc/csi@4ad40000`, `snps,dw-mipi-csi2syscon` — **both `status = disabled`** | [MEASURED 2026-10-09] |
+| the five claimed sensors | **absent from the device tree entirely** — no `compatible` anywhere matches `ov5640`/`ov13858`/`ov2775`/`imx219`/`imx477` | [MEASURED 2026-10-09] |
+
+⚠️ **SCOPE — this is an INSTANCE fact, not a platform fact.** It means *no camera is attached to the
+board on the desk and the CSI bridges are turned off.* It does **not** mean the i.MX95 cannot do
+MIPI-CSI, and a reader must not convert "no sensor present" into "sensors unsupported". v1's five
+sensors are now **worse than unconfirmed — they are measurably not there.**
+
+### 🪤 THE TRAP THIS EXPOSED, AND IT WAS LIVE IN THIS REPO
+**`/dev/video*` existing is not a camera.** Four nodes are present and every one is a codec. A skill
+that enumerates `/dev/video*` and reports "4 video devices found" is confidently wrong, and v1 did
+worse than that:
+
+- `test_capture.sh` **defaulted to `/dev/video0`** → it would have pointed a capture test at the
+  **Wave6 video decoder** and reported whatever that produced;
+- `detect_cameras.sh` **printed `test_capture.sh /dev/video0` as the suggested next command** —
+  actively routing the operator there.
+
+Both fixed: the default is **removed** (the script now refuses without an explicit device and names
+the four codecs), and the suggestion asks for a node the detector actually classified as capture.
+⇒ This is **tier ② of `reestablish-the-referent-law`** in the repo's own target domain: the
+convenient identifier (`/dev/video*` exists) standing in for the authoritative one (what the device
+**is**). The pipeline shape `Sensor (I²C) → MIPI CSI-2 RX → ISI → V4L2` remains [SOURCED].
+
+**A camera skill must DETECT and REPORT, never assert:** match by **driver name, not device
+number** — `/dev/videoN` numbering is unstable across BSP updates and USB insertion, and on this
+board the low numbers are codecs.
+
+**Still open:** whether a sensor *works* once attached — unanswerable with no sensor attached, and
+it needs hardware, not a question. Enabling either `csi@...` node is a DT change, not a probe.
 
 ---
 
