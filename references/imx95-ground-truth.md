@@ -105,7 +105,11 @@ Every fact carries exactly one tag. **A fact with no tag is a bug in this file, 
 > explanatory "because" in prose) — the opposite failure, and equally useless, since a checker nobody
 > believes is a checker nobody reads. It was narrowed by *scope*, not by sensitivity.
 >
-> ### ⭐⭐⭐ THE GENERALISATION — A COST PROBLEM, NOT A CARE PROBLEM, IN **THREE TIERS**
+> ### ⭐⭐⭐ THE GENERALISATION — canonical name: **`reestablish-the-referent-law`**
+>
+> *Ruled rule-shaped and canonicalized by @qualcomm as numbering owner, 2026-10-08, with the
+> three-tier structure and the four in-checker instances carried **as evidence**.* **A cost problem,
+> not a care problem.**
 >
 > Every defect above is one shape: **a name in one namespace standing in for a referent in
 > another.** But the instances are **not of equal weight**, and the tiers are split by **who picks
@@ -126,6 +130,31 @@ Every fact carries exactly one tag. **A fact with no tag is a bug in this file, 
 > ⚠️ **`evals/relation_lint.sh` owns tier ②. Nothing owns tier ③ yet** — that needs a cross-tree
 > grep for the *resolved* string plus a uniqueness assertion on `type_register_static()`, which is a
 > different tool.
+>
+> ### ⭐ RETROSPECTIVE VALIDATION: the fleet had already fixed two tier-② instances the law's way,
+> ### before anyone had the abstraction — and both were in the **bus tooling itself**
+>
+> | convenient identifier | authoritative referent | found | the fix actually chosen |
+> |---|---|---|---|
+> | the shell's **cwd** (`bus.sh` derived session identity from it) | the **`session_id`** | 2026-08-11 | *"derive identity from `session_id`, not cwd"* |
+> | **`comm`** (`pid-join.sh:_claude_pid` matched `comm == "claude"`) | **`/proc/<pid>/exe`** | 2026-09-04 | resolve the **install**, never the name |
+>
+> Both are textbook tier ②: the read is *accurate* — cwd genuinely is that directory, `comm`
+> genuinely is that string — and the **referent is wrong**. The cwd one let messages land on the
+> permanent bus log under a fabricated identity (**46 ghost messages** across three log files).
+> `comm` broke because Claude Code execs a *versioned* binary, so `comm` is `2.1.237`; the result was
+> read cursors frozen fleet-wide for weeks.
+>
+> **Neither fix was derived from this law — the law did not exist.** Both were reached
+> independently, and **both are exactly what tier ② prescribes: stop using the convenient name,
+> fetch the authoritative referent.** That is retrospective validation in @qualcomm's sense: a law
+> that predicts fixes practitioners already chose, for reasons they stated at the time, is not a
+> post-hoc story. *(Both instances are in the fleet's own identity infrastructure — the thing every
+> session's provenance depends on.)*
+>
+> ⇒ Also an instance of @qualcomm's **inert-checker law** — *a check blind to a sub-shape by
+> construction looks identical to one that passes.* That is why this file records the lint's
+> blindness to the inverted sub-shape (⑧) instead of patching toward a false coverage claim.
 >
 > ### 🔴 My own narrowing was wrong, and in a way worth keeping
 > I proposed **two** tiers — "machine-resolved is strong, vernacular is illustration" — and it failed
