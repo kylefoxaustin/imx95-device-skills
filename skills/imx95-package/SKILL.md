@@ -29,6 +29,33 @@ destructive: false
 Detects whether the board uses `apt` (Debian/Ubuntu-based images) or `opkg` (Yocto/OpenEmbedded
 images) and wraps install, remove, search, and list-installed operations in a unified interface.
 
+> ## 🔴 ON THE FLEET BOARD, INSTALLING IS EXPECTED TO FAIL — AND THE SKILL NOW SAYS SO
+>
+> **The FRDM-IMX95-PRO runs a sealed Yocto image with NO WORKING PACKAGE FEED** [MEASURED —
+> ground-truth §5]. `opkg update` does not fail here *occasionally*; it fails **every time**.
+>
+> ⚠️ **This SKILL.md and all four of its scripts previously made zero mention of that** — the
+> skill's whole premise contradicted a measured fact in the ground truth. Worse,
+> `install_pkg.sh` did:
+>
+> ```
+> opkg update || log_warn "opkg update failed — using cached index"
+> opkg install "$PKG"            # ← proceeded regardless
+> ```
+>
+> So on this board it **always** fell through to installing from a stale or empty cache, and
+> *"using cached index"* read as a caveat rather than a stop. **That is the delegate bug's shape
+> exactly** — the warning was present, correct, and useless, because a warning printed above an
+> action is read as a caveat and an exit code is read as a stop.
+>
+> It now **refuses with exit 4** and names the supported path instead: build on the host and `scp`
+> over. A native build is a real option — **gcc 15.2 is on-board**, and
+> `/usr/lib/libtensorflow-lite.so.2.19.0` exports the full TFLite C API (no headers ship; fetch the
+> v2.19.0 C headers and `-Iinclude` them).
+>
+> `apt` paths are left intact and untouched — they are for *other* images, and nobody has measured
+> one. Treat them as [UNVERIFIED].
+
 Use this skill:
 - When the user asks to install or remove a package
 - To check if a package is installed

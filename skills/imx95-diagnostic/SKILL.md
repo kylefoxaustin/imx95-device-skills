@@ -113,7 +113,7 @@ Model     : NXP FRDM-IMX95-PRO
 SoC       : i.MX95 rev1.1
 Kernel    : 6.18.0 (this board — Yocto; NOT 6.6.x)
 Uptime    : 2h 14m
-Hostname  : imx95-evk
+Hostname  : imx95evk   ⚠️ NOT an identity — two fleet boards answer to it
 Timestamp : 2024-01-15T10:30:00Z
 
 === CPU ===

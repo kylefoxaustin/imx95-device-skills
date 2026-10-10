@@ -64,17 +64,32 @@ No arguments required. Output is always one screen (~20 lines).
 ## Output Format
 
 ```
-Board     : NXP FRDM-IMX95-PRO
-SoC       : i.MX95 rev1.1
-Compatible: fsl,frdm-imx95-pro fsl,imx95
-Kernel    : 6.18.0 (this board — Yocto; NOT 6.6.x)
-Uptime    : 2h 14m
-Hostname  : imx95-evk
-IP        : 192.168.1.42 (eth0)
-eIQ       : 2.4.0 (/usr/bin/eiq-benchmark)
-RootFS    : rw (read-write)
-Disk /    : 12G free of 28G (43% used)
+Board     : NXP FRDM-IMX95-PRO                       [MEASURED]
+SoC       : i.MX95 rev2.0                            [MEASURED]
+Compatible: fsl,frdm-imx95-pro fsl,imx95             [MEASURED]
+Kernel    : 6.18.0 (Yocto; NOT 6.6.x)                [MEASURED]
+Uptime    : <live>
+Hostname  : imx95evk   ⚠️ NOT a board identity …     [MEASURED, non-unique]
+IP        : <live>
+eIQ       : <version> (/usr/bin/tensorflow-lite-2.19.0/examples/benchmark_model)
+tflite-py : <version or "not installed">
+RootFS    : rw (read-write)                          [MEASURED]
+Disk /    : 8.7G free of 56G (84% used) on /dev/mmcblk1p2   [MEASURED 2026-10-09 — VOLATILE]
 ```
+
+> ### ⚠️ The sample above is now MEASURED values, because the previous one was invented
+> The earlier sample read `SoC : i.MX95 rev1.1`, `Hostname : imx95-evk`,
+> `eIQ : 2.4.0 (/usr/bin/eiq-benchmark)` and `Disk / : 12G free of 28G`. **Every one of those four
+> was fabricated**, and three contradict measured facts: this SoC is **rev 2.0**, the hostname is
+> **`imx95evk`** (no hyphen), `/usr/bin/eiq-benchmark` **does not exist on this board**, and `28G`
+> is roughly the **eMMC** capacity while `/` lives on the **56 G SD card**.
+>
+> **A sample output is a claim.** A reader calibrates from it — someone who saw `28G` would
+> reasonably conclude `/` is on the eMMC, which is the device-vs-mount-point confusion this repo
+> has a law about. Live fields are marked `<live>` rather than given plausible-looking values.
+>
+> ⚠️ **`Disk /` is volatile** — `/` shed 10 GB in two days (ground-truth §5). Treat the figure above
+> as an example of the *format*, never as the current state.
 
 ---
 

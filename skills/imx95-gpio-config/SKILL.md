@@ -18,9 +18,34 @@ requires:
   - gpioinfo
   - gpioget
   - gpioset
-safe: true
-destructive: false
+safe: false          # was `true` — WRONG: this skill drives GPIO lines
+destructive: false   # the write is not PERSISTENT, but it is not side-effect-free either
 ---
+
+> ## 🔴 SAFETY RECLASSIFIED: `safe: true` → `safe: false`
+>
+> This skill's front matter claimed **`safe: true`**, which in `CLAUDE.md`'s safety model means
+> *"read-only, no side effects, Claude runs without asking."* **It is none of those things.** Its own
+> `invoke_when` list includes *"write a GPIO"*, *"set GPIO high"*, *"set GPIO low"*; `gpio_write.sh`
+> drives lines with `gpioset`; and that script already warns *"gpioset will attempt to drive it as
+> output — this may conflict with hardware."*
+>
+> **The metadata is what decides whether an agent asks.** A correct in-script confirmation prompt
+> does not help if the harness was told no confirmation is needed — the same shape as a warning
+> printed above a number: present, correct, and bypassed.
+>
+> ⚠️ **On a dev board, GPIO lines are wired to things.** Resets, power enables, PMIC signals,
+> display enables. Driving one is not a read.
+>
+> **Why the whole skill is reclassified and not just the write path:** it bundles `gpio_list.sh` and
+> `gpio_read.sh` (genuinely safe) with `gpio_write.sh` (not). **An aggregate takes the risk class of
+> its most dangerous operation** — that is the fail-closed direction, and the one that cannot
+> surprise anyone. `list` and `read` remain safe to run; the *skill* is no longer marked
+> run-without-asking.
+>
+> `destructive` stays `false` deliberately: a driven line does not survive a power cycle, and
+> `destructive: true` in this repo means *persistent* state (eMMC, kernel cmdline, fuses). Not
+> every unsafe thing is destructive, and conflating them would make the stronger flag meaningless.
 
 # Skill: imx95-gpio-config
 

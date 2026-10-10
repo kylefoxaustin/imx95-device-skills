@@ -116,7 +116,7 @@ if should_run "IDENTITY"; then
     printf "%-12s: %s\n" "Compatible" "${COMPAT}"
     printf "%-12s: %s\n" "Kernel"     "${KERNEL}"
     printf "%-12s: %s\n" "Uptime"     "${UPTIME_H}"
-    printf "%-12s: %s\n" "Hostname"   "${HOSTNAME_VAL}"
+    printf "%-12s: %s%s\n" "Hostname"   "${HOSTNAME_VAL}" "   ⚠️ NOT a board identity — two fleet boards answer to 'imx95evk'; use Model/Compatible"
     printf "%-12s: %s\n" "Timestamp"  "${SNAP_TIME}"
 fi
 
@@ -272,7 +272,31 @@ if should_run "MEMORY"; then
     elif [ "${CMA_USED_PCT}" -gt 80 ]; then
         echo "MEMORY STATUS: CMA PRESSURE — CMA is ${CMA_USED_PCT}% used. VPU/ISP/NPU allocations may fail."
     else
-        echo "MEMORY STATUS: OK"
+        echo "MEMORY STATUS: ${MEM_AVAIL_MB} MB available. ⚠️ CMA health NOT ASSESSED — see below."
+    fi
+
+    # 🔴 THE SAME MASKING DEFECT THAT WAS IN imx95-memory-audit, DUPLICATED HERE.
+    # /proc/meminfo CmaFree is the SUM of linux,cma (~960 MiB — the pool the
+    # TFLite delegate draws from) and neutron_memory (~4096 MiB). No
+    # CONFIG_CMA_DEBUGFS on this kernel ⇒ no per-pool accounting.
+    #   entire 960 MiB delegate pool exhausted -> 960/5056 = 19.0% of aggregate
+    #   -> BELOW the 80% threshold above -> prints "MEMORY STATUS: OK"
+    # i.e. this said OK at the exact moment the Neutron delegate could not
+    # allocate and the whole graph silently ran on the A55s.
+    # ⇒ The verdict is withheld; the number is printed with its composition.
+    #
+    # ⚠️ Found by grepping the OLD value fleet-wide after fixing memory-audit —
+    # the identical threshold sat in TWO skills and fixing one left the other.
+    # A correction at the source leaves copies behind (@95emulator's rule).
+    if [ "${CMA_TOTAL_MB}" -gt 4000 ]; then
+        echo ""
+        echo "CMA: ${CMA_FREE_MB} MB free of ${CMA_TOTAL_MB} MB — ⚠️ AGGREGATE OF TWO POOLS, NOT A HEALTH SIGNAL"
+        echo "  Sums linux,cma (~960 MiB, TFLite delegate) + neutron_memory (~4096 MiB)."
+        echo "  No per-pool accounting exists on this kernel, so a healthy total does NOT"
+        echo "  prove the delegate's pool is free — and full exhaustion of it reads as only"
+        echo "  ~19% here, which is why no percentage threshold can detect the CMA trap."
+        echo "  Prove an offload instead: watch CmaFree DURING a run + gate on the placement"
+        echo "  line (lib/neutron.sh, ground-truth §2.2)."
     fi
 fi
 

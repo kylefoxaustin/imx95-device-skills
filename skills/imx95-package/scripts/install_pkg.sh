@@ -117,7 +117,31 @@ case "${PKG_MANAGER}" in
         }
         ;;
     opkg)
-        opkg update 2>/dev/null || log_warn "opkg update failed — using cached index"
+        # 🔴 REFUSE, DO NOT DEGRADE. This used to read:
+        #     opkg update || log_warn "opkg update failed — using cached index"
+        # and then install anyway. On THIS board that warning fires every time:
+        # the image is a SEALED Yocto build with NO WORKING PACKAGE FEED
+        # [MEASURED — ground-truth §5]. So the skill always fell through to
+        # installing from a stale or empty cache, and "using cached index" read
+        # as a caveat rather than a stop. That is the same shape as the delegate
+        # bug's "NPU inference will fall back to CPU": present, correct, useless.
+        if ! opkg update 2>/dev/null; then
+            log_error "opkg update FAILED — refusing to install from a stale index."
+            log_error ""
+            log_error "This is the EXPECTED state on this board, not a transient error:"
+            log_error "  the image is a sealed Yocto build with no working feed [MEASURED]."
+            log_error ""
+            log_error "Installing anyway would either fail confusingly or pull a cached"
+            log_error "version nobody chose. The supported path is:"
+            log_error "  1. build the package (or binary) ON THE HOST"
+            log_error "  2. scp it to the board"
+            log_error "  3. for a native build: gcc 15.2 IS on-board, and"
+            log_error "     /usr/lib/libtensorflow-lite.so.2.19.0 exports the full TFLite C API"
+            log_error "     (no headers ship — fetch v2.19.0 C headers and -Iinclude them)"
+            log_error ""
+            log_error "See references/imx95-ground-truth.md §5 and CLAUDE.md §2."
+            exit 4
+        fi
         opkg install "${PKG_NAME}" || {
             log_error "opkg install failed for '${PKG_NAME}'"
             log_error "Try: opkg find *${PKG_NAME}*"
