@@ -107,7 +107,24 @@ case "${PKG_MANAGER}" in
             LISTS_AGE=$(( $(date +%s) - $(stat -c %Y "${APT_LISTS_DIR}" 2>/dev/null || echo 0) ))
             if [ "${LISTS_AGE}" -gt 3600 ]; then
                 log_info "Updating apt package index..."
-                apt-get update -qq 2>/dev/null || log_warn "apt-get update failed — using cached index"
+                # 🔴 REFUSE, DO NOT DEGRADE — symmetric with the opkg branch below.
+                # This used to warn "using cached index" and install anyway. I fixed
+                # the opkg path and LEFT THIS ONE, justifying it as "apt is for other
+                # images, nobody has measured one". That justification covers whether
+                # the apt PATHS are right; it does not license warn-and-continue.
+                # Installing from an index that failed to refresh pulls a version
+                # nobody chose, on any image, and the warning reads as a caveat.
+                # Caught by evals/sweep_regressions.sh on its FIRST run.
+                if ! apt-get update -qq 2>/dev/null; then
+                    log_error "apt-get update FAILED — refusing to install from a stale index."
+                    log_error "  The index could not be refreshed, so any version resolved now is"
+                    log_error "  whatever happens to be cached. Fix connectivity/sources, or build"
+                    log_error "  on the host and scp the artifact over."
+                    log_error "  (No apt-based i.MX95 image has been measured by this repo —"
+                    log_error "   these paths are [UNVERIFIED]; the refusal is the conservative"
+                    log_error "   direction either way.)"
+                    exit 4
+                fi
             fi
         fi
         DEBIAN_FRONTEND=noninteractive apt-get install -y "${PKG_NAME}" || {
