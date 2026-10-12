@@ -923,6 +923,36 @@ zero is indistinguishable from an absent property.** Use `/sys/firmware/devicetr
 
 ## 7. Yocto / BSP naming — [UNKNOWN], pending confirmation
 
+> ### 🔴 Q3 / MACHINE — CORRECTED 2026-10-10: the name EXISTS, it builds the WRONG BOARD
+>
+> An earlier version of this file said the Yocto `MACHINE` was unverifiable and that Q3 "needs a
+> newer BSP snapshot". **Both were wrong.** Measured in `~/Documents/nxp/linux/imx-yocto-bsp`:
+>
+> | machine conf | exists? | builds |
+> |---|---|---|
+> | `imx95-19x19-lpddr5-evk` | ✅ **yes** — already used for a local build | `imx95-19x19-evk.dtb` |
+> | `imx95-15x15-lpddr4x-frdm` | ✅ yes | `imx95-15x15-frdm.dtb` |
+> | `imx95frdm`, `imx95-15x15-evk` | ❌ no — v1 inventions | bitbake fails (the **safe** outcome) |
+> | **this board runs** | — | **`imx95-19x19-frdm-pro-neutron.dtb`** [MEASURED] |
+>
+> **Nine imx95 machine confs exist and not one builds this board's device tree.** Every option is
+> the right SoC package with the wrong board (19×19 **EVK**) or the right board family with the
+> wrong package (**FRDM** at 15×15). There is no 19×19 FRDM-PRO machine.
+>
+> ⇒ **So the hazard is not a missing file — it is a VALID name that builds a DIFFERENT BOARD.** A
+> MACHINE that fails bitbake is the good outcome; one that succeeds and produces an EVK device tree
+> gives you a bootable-looking image for hardware you do not have.
+>
+> **Likely cause** [SOURCED — Kyle, i.MX product org, 2026-10-10; **not** independently verified
+> against an NXP release index]: **NXP may not have released a formal FRDM-IMX95-PRO BSP yet.** If
+> that holds, **waiting for a newer snapshot does not help** and the path is a custom machine conf
+> (`imx95-derive-carrier`).
+>
+> ⚠️ **Provenance note on the retracted claim.** "Needs a newer BSP snapshot" was a *hypothesis
+> about the fix*, relayed as a blocker, and never checked against the local BSP — which was
+> populated and already contained a working imx95 build all along. @95emulator's actual finding was
+> narrower: no conf for **`frdm-imx95-pro`**, which is true. The overstatement was mine.
+
 The first version hardcoded `MACHINE=imx95-19x19-lpddr5-evk` everywhere, including `deploy_dir`.
 Evidence count across the fleet's i.MX95 repos:
 
